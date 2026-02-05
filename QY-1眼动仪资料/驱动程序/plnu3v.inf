@@ -1,0 +1,165 @@
+;---------------------------------------------------------------;
+;/*++
+;
+;Copyright (c) 2012-2013 Basler
+;
+;Abstract:
+;    Installation file for Basler pylon U3Vision Driver
+;
+;--*/
+
+;---------------------------------------------------------------;
+;-------------- Version section --------------------------------;
+
+[Version]
+Signature="$WINDOWS NT$"
+Class=PylonUSB
+ClassGuid={79bfeecb-947f-11e1-bc58-001b2163ef96}
+Provider=%S_Provider%
+DriverVer=06/19/2015,4.3.0
+CatalogFile=plnu3v.cat
+
+
+;---------------------------------------------------------------;
+;-------------- Class section ----------------------------------;
+
+[ClassInstall32]
+Addreg=PylonUSBClassReg     
+
+[PylonUSBClassReg]
+HKR,,,0,%PylonUSBClassDescription%
+HKR,,IconPath,%REG_MULTI_SZ%,"%SystemRoot%\System32\PylonUsbRes.dll,101"
+
+
+
+;---------------------------------------------------------------;
+;-------------- Device section ---------------------------------;
+[ControlFlags]
+BasicDriverOk = *
+
+[Manufacturer]
+%S_Manufacturer%=Basler,NTAMD64
+
+; empty section for Windows 2000
+[Basler]
+
+
+; For XP and later
+[Basler.NTAMD64]
+%AceDeviceDescription%   =         _Install, USB\VID_2676&PID_BA02&MI_00
+%DartDeviceDescription%  =         _Install, USB\VID_2676&PID_BA03&MI_00
+%PulseDeviceDescription% =         _Install, USB\VID_2676&PID_BA04&MI_00
+
+; future products
+%GenericBaslerDeviceDescription% = _Install, USB\VID_2676&PID_BA05&MI_00
+%GenericBaslerDeviceDescription% = _Install, USB\VID_2676&PID_BA06&MI_00
+%GenericBaslerDeviceDescription% = _Install, USB\VID_2676&PID_BA07&MI_00
+%GenericBaslerDeviceDescription% = _Install, USB\VID_2676&PID_BA08&MI_00
+%GenericBaslerDeviceDescription% = _Install, USB\VID_2676&PID_BA09&MI_00
+%GenericBaslerDeviceDescription% = _Install, USB\VID_2676&PID_BA0A&MI_00
+%GenericBaslerDeviceDescription% = _Install, USB\VID_2676&PID_BA0B&MI_00
+%GenericBaslerDeviceDescription% = _Install, USB\VID_2676&PID_BA0C&MI_00
+%GenericBaslerDeviceDescription% = _Install, USB\VID_2676&PID_BA0D&MI_00
+%GenericBaslerDeviceDescription% = _Install, USB\VID_2676&PID_BA0E&MI_00
+%GenericBaslerDeviceDescription% = _Install, USB\VID_2676&PID_BA0F&MI_00
+
+%GenericBaslerDeviceDescription% = _Install, USB\VID_2676&PID_BABA&MI_00
+%GenericU3VDeviceDescription% = _Install, USB\VID_2676&PID_5000&MI_00
+
+[_Install]
+CopyFiles=_Install_sys,U3Vision_Icon_Copy
+
+[U3Vision_Icon_Copy]
+PylonUsbRes.dll
+
+[_Install.Services]
+AddService = %S_Service%, %SPSVCINST_ASSOCSERVICE%, _AddService
+
+[_AddService]
+;DisplayName    = "Display Name"
+Description    = %USB3VisionService_Description%
+ServiceType    = %SERVICE_KERNEL_DRIVER%
+StartType      = %SERVICE_DEMAND_START%
+ErrorControl   = %SERVICE_ERROR_NORMAL%
+ServiceBinary  = %12%\%S_Service%.sys
+AddReg         = U3Vision.AddReg
+LoadOrderGroup = Base
+
+[U3Vision.AddReg]
+HKR,, "FriendlyName", %REG_SZ%, %DeviceFriendlyname%
+
+[_Install_sys]
+plnu3v.sys
+
+[SourceDisksNames]
+1=%Disk_Description%,,,
+
+[SourceDisksFiles]
+plnu3v.sys = 1          ; SourceDrive:\pathname (the directory from which the INF file was installed)
+PylonUsbRes.dll = 1 
+
+[DestinationDirs]
+DefaultDestDir = 12     ; Drivers directory.
+U3Vision_Icon_Copy = 11 ; System32 directory.
+
+;---------------------------------------------------------------;
+;-------------- WDF Coinstaller installation--------------------;
+
+[DestinationDirs]
+CoInstaller_CopyFiles = 11	; System directory
+
+
+[_Install.CoInstallers]
+AddReg=CoInstaller_AddReg
+CopyFiles=CoInstaller_CopyFiles
+
+[CoInstaller_CopyFiles]
+WdfCoInstaller01009.dll
+
+[SourceDisksFiles]
+WdfCoInstaller01009.dll=1 ;  SourceDrive:\pathname (the directory from which the INF file was installed)
+ 
+
+[CoInstaller_AddReg]
+HKR,,CoInstallers32,0x00010000, "WdfCoInstaller01009.dll,WdfCoInstaller"
+
+[_Install.Wdf]
+KmdfService = %S_Service%, _wdfsect
+[_wdfsect]
+KmdfLibraryVersion = 1.9
+
+;---------------------------------------------------------------;
+;-------------- String section ---------------------------------;
+[Strings]
+REG_SZ         = 0x00000000
+REG_MULTI_SZ   = 0x00010000
+REG_EXPAND_SZ  = 0x00020000
+REG_BINARY     = 0x00000001
+REG_DWORD      = 0x00010001
+SPSVCINST_ASSOCSERVICE= 0x00000002
+
+Basler_CompanyName              =  "Basler"
+
+SERVICE_KERNEL_DRIVER = "1"
+SERVICE_DEMAND_START  = "3"
+SERVICE_ERROR_NORMAL  = "1"
+
+S_Provider      = "Basler"
+S_Manufacturer  = "Basler"
+S_Service       = "plnu3v"
+
+Disk_Description                =  "Basler pylon USB3 Vision Installation Disk"
+PylonUSBClassDescription        =  "Basler USB3 Vision Cameras"
+USB3VisionService_Name          =  "Basler pylon USB3 Vision Camera Driver"
+USB3VisionService_Description   =  "Driver for Basler USB3 Vision Cameras"
+USB3VisionDisk_Description      =  "Basler pylon USB3 Vision Installation Disk"
+;---------------------------------------------------------------;
+
+ServiceDescription     = "Service for USB3 Vision Devices"
+AceDeviceDescription   = "Basler ace USB3 Vision Camera"
+DartDeviceDescription  = "Basler dart USB3 Vision Camera"
+PulseDeviceDescription = "Basler pulse USB3 Vision Camera"
+GenericBaslerDeviceDescription = "Basler USB3 Vision Camera"
+GenericU3VDeviceDescription = "USB3 Vision compliant camera"
+
+DeviceFriendlyname	   = "Basler pylon USB3 Vision Camera"
