@@ -25,7 +25,7 @@ class CalibrationManager:
         self.ctl_target = visual.Circle(self.win_ctl, radius=15, fillColor='white', lineColor='red')
         self.ctl_gaze = visual.Circle(self.win_ctl, radius=5, fillColor='yellow', opacity=0.8)
 
-    def run_calibration(self,default_left_cal = {'ox':0.0,'oy':0.0,'gx':1.0,'gy':1.0},default_right_cal= {'ox':0.0,'oy':0.0,'gx':1.0,'gy':1.0}):
+    def run_calibration(self,default_left_cal = {'ox':-865.6,'oy':-301.0,'gx':2023.224,'gy':1287.796},default_right_cal= {'ox':-1008.7,'oy':70.4,'gx':2203.769,'gy':1439.845}):
         """执行 9 点校准流程"""
         collected_data = [] # 存储结构: (target_x, target_y, raw_xl, raw_yl, raw_xr, raw_yr)
 
@@ -88,11 +88,11 @@ class CalibrationManager:
             
             avg_raw = np.mean(samples, axis=0)
             collected_data.append((tx, ty, avg_raw[0], avg_raw[1], avg_raw[2], avg_raw[3]))
-            print(f" -> Raw Left: ({avg_raw[0]:.1f}, {avg_raw[1]:.1f})")
+            print(f" -> Raw: (xl: {avg_raw[0]:.1f}, yl:{avg_raw[1]:.1f},xr:{avg_raw[2]:.1f},yr:{avg_raw[3]:.1f})")
 
         # Step C: 计算并应用
-        self._calculate_and_apply(np.array(collected_data))
-        return True
+        (left_cal,right_cal) = self._calculate_and_apply(np.array(collected_data))
+        return (left_cal,right_cal)
 
     def _calculate_and_apply(self, data):
         """利用线性回归计算 Gain 和 Offset 并更新共享内存"""
@@ -114,7 +114,13 @@ class CalibrationManager:
         self.shared_data.set_calibration_left(oxl, oyl, gxl, gyl)
         self.shared_data.set_calibration_right(oxr, oyr, gxr, gyr)
 
+        left_cal = {'ox':oxl,'oy':oyl,'gx':gxl,'gy':gyl}
+        right_cal = {'ox':oxr,'oy':oyr,'gx':gxr,'gy':gyr}
+
         print("\n校准完成！参数已同步至后台进程。")
-        print(f"左眼参数: Gain({gxl:.3f}, {gyl:.3f}), Offset({oxl:.1f}, {oyl:.1f})")
+        print(f"左眼参数: Gain xl and yl:({gxl:.3f}, {gyl:.3f}), Offset xl and yl: ({oxl:.1f}, {oyl:.1f})")
+        print(f"右眼参数: Gain xl and yl:({gxr:.3f}, {gyr:.3f}), Offset xl and yl: ({oxr:.1f}, {oyr:.1f})")
+
+        return (left_cal,right_cal)
 
 

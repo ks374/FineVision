@@ -48,7 +48,9 @@ if __name__ == '__main__':
         shared_data=shared_data
     )
 
-    success = calib_manager.run_calibration()
+    (left_cal,right_cal) = calib_manager.run_calibration()
+
+    (left_cal,right_cal) = calib_manager.run_calibration(left_cal,right_cal)
 
     shared_data.stop()
     p_server.join()
