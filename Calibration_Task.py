@@ -4,6 +4,10 @@ from psychopy import visual,core,event
 from Shared_Memory_Util import SharedGazeData
 from QYEyetracker_Server import EyetrackerServer
 from CalibrationManager import CalibrationManager
+from Jason_manager import *
+from datetime import datetime
+import json
+import os
 
 # %%
 if __name__ == '__main__':
@@ -17,6 +21,13 @@ if __name__ == '__main__':
 #   可以在 Windows "显示设置" 里确认编号
     MONITOR_ID_SUBJECT = 1 
     MONITOR_ID_CONTROL = 0 
+
+    # 1.1 生成当前任务的json文件，后缀为cal
+    timestamp = datetime.now().strftime("%Y%m%d")
+    task_json_path = f"task_data_{timestamp}.json"
+    
+    update_json(task_json_path,"Session_start_time",timestamp)
+    print(f"Json file created and timestamp saved to: {task_json_path}")
 
     # 2. 初始化猴子窗口 (Full Screen)
     win_subject = visual.Window(
@@ -45,12 +56,37 @@ if __name__ == '__main__':
     calib_manager = CalibrationManager(
         subject_win=win_subject, 
         control_win=win_control, 
-        shared_data=shared_data
+        shared_data=shared_data,
+        setting_file_path = task_json_path
     )
 
-    (left_cal,right_cal) = calib_manager.run_calibration()
+    default_json_path = f"default_setting.json"
+    fallback_left = {'ox': -865.6, 'oy': -301.0, 'gx': 2023.224, 'gy': 1287.796}
+    fallback_right = {'ox': -1008.7, 'oy': 70.4, 'gx': 2203.769, 'gy': 1439.845}
+    if not os.path.exists(self.default_json_path):
+        default_left_cal = fallback_left
+        default_right_cal = fallback_right
+        default_settings = {
+            "default_left_cal":default_left_cal,
+            "default_right_cal":default_right_cal
+        }
+        with open(default_json_path,'w',encoding='utf-8') as f:
+            json.dump(default_settings,f,indent=4)
+        
+    else:
+        with open(default_json_path,'r',encoding='utf-8') as f:
+            settings = json.load(f)
+            default_left_cal = settings.get("default_left_cal",fallback_left)
+            default_right_cal = settings.get("default_right_cal",fallback_right)
+        print(f"Fetch default cali parameters as default.")
+
+    (left_cal,right_cal) = calib_manager.run_calibration(default_left_cal,default_right_cal)
+
+    #STOPPED HERE: need to update default and task json files. 
 
     (left_cal,right_cal) = calib_manager.run_calibration(left_cal,right_cal)
+
+    
 
     shared_data.stop()
     p_server.join()

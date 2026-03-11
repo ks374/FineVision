@@ -3,12 +3,20 @@ import numpy as np
 from psychopy import visual, core, event
 from Shared_Memory_Util import SharedGazeData
 #from QYEyetracker_Server import EyetrackerServer
+from datetime import datetime
+
 
 class CalibrationManager:
-    def __init__(self, subject_win, control_win, shared_data):
+    def __init__(self, subject_win, control_win, shared_data,setting_file_path):
         self.win_sub = subject_win
         self.win_ctl = control_win
         self.shared_data = shared_data
+        self.setting_file_path = setting_file_path
+
+
+        #This file lives in the drive forever. It will save the default calibration parameteres
+        #Updated everytime you do a calibration. 
+        self.default_json_path = f"default_setting.json"
 
         # 获取分辨率比率 (用于把猴子的大坐标缩放到你的小窗口上)
         self.scale_x = control_win.size[0] / subject_win.size[0]
@@ -25,7 +33,7 @@ class CalibrationManager:
         self.ctl_target = visual.Circle(self.win_ctl, radius=15, fillColor='white', lineColor='red')
         self.ctl_gaze = visual.Circle(self.win_ctl, radius=5, fillColor='yellow', opacity=0.8)
 
-    def run_calibration(self,default_left_cal = {'ox':-865.6,'oy':-301.0,'gx':2023.224,'gy':1287.796},default_right_cal= {'ox':-1008.7,'oy':70.4,'gx':2203.769,'gy':1439.845}):
+    def run_calibration(self,default_left_cal,default_right_cal):
         """执行 9 点校准流程"""
         collected_data = [] # 存储结构: (target_x, target_y, raw_xl, raw_yl, raw_xr, raw_yr)
 
