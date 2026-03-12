@@ -4,7 +4,7 @@ from psychopy import visual,core,event
 from Shared_Memory_Util import SharedGazeData
 from QYEyetracker_Server import EyetrackerServer
 from CalibrationManager import CalibrationManager
-from Jason_manager import *
+from Json_manager import update_json,read_json
 from datetime import datetime
 import json
 import os
@@ -63,7 +63,7 @@ if __name__ == '__main__':
     default_json_path = f"default_setting.json"
     fallback_left = {'ox': -865.6, 'oy': -301.0, 'gx': 2023.224, 'gy': 1287.796}
     fallback_right = {'ox': -1008.7, 'oy': 70.4, 'gx': 2203.769, 'gy': 1439.845}
-    if not os.path.exists(self.default_json_path):
+    if not os.path.exists(default_json_path):
         default_left_cal = fallback_left
         default_right_cal = fallback_right
         default_settings = {
@@ -82,7 +82,11 @@ if __name__ == '__main__':
 
     (left_cal,right_cal) = calib_manager.run_calibration(default_left_cal,default_right_cal)
 
-    #STOPPED HERE: need to update default and task json files. 
+    #Need to update default and task json files. 
+    update_json(default_json_path,"default_left_cal",left_cal)
+    update_json(default_json_path,"default_right_cal",right_cal)
+    update_json(task_json_path,"left_cal",left_cal)
+    update_json(task_json_path,"right_cal",right_cal)
 
     (left_cal,right_cal) = calib_manager.run_calibration(left_cal,right_cal)
 

@@ -4,6 +4,7 @@ from psychopy import visual, core, event
 from Shared_Memory_Util import SharedGazeData
 #from QYEyetracker_Server import EyetrackerServer
 from datetime import datetime
+from collections import deque
 
 
 class CalibrationManager:
@@ -32,6 +33,14 @@ class CalibrationManager:
         self.stim_target = visual.Circle(self.win_sub, radius=15, fillColor='white', lineColor='red')
         self.ctl_target = visual.Circle(self.win_ctl, radius=15, fillColor='white', lineColor='red')
         self.ctl_gaze = visual.Circle(self.win_ctl, radius=5, fillColor='yellow', opacity=0.8)
+        self.tail_line = visual.ShapeStim(
+            self.win_ctl,
+            vertices=[(0,0),(0,0)],
+            closeShape=False,
+            lineWidth=2.0,
+            lineColor='yellow',
+            opacity=0.6
+        )
 
     def run_calibration(self,default_left_cal,default_right_cal):
         """执行 9 点校准流程"""
@@ -50,6 +59,10 @@ class CalibrationManager:
             # --- 关键修改：进入实时渲染循环，而不是死等按键 ---
             # 这一步让你能看到猴子到底在看哪
             event.clearEvents() # 清除旧按键
+
+            #Define the tail for the gaze position
+            gaze_trail = deque(maxlen=60)
+
             while True:
                 # 1. 获取最新视线 (此时拿到的是经过 gain=1, offset=0 计算后的“伪原始”数据)
                 # 注意：这里我们只画左眼或者双眼中心作为参考
@@ -67,6 +80,13 @@ class CalibrationManager:
                     # 假设 raw data 也是以屏幕中心为 0 (或者在 Server 端做过基础去中心化)
                     gx_scaled = gaze['x'] * self.scale_x
                     gy_scaled = gaze['y'] * self.scale_y
+
+                    gaze_trail.append((gx_scaled,gy_scaled))
+
+                    if len(gaze_trail) >= 2:
+                        self.tail_line.vertices = list(gaze_trail)
+                        self.tail_line.draw()
+
                     self.ctl_gaze.pos = (gx_scaled,gy_scaled)
                     self.ctl_gaze.draw()
                 
