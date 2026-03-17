@@ -10,6 +10,7 @@ from Shared_Memory_Util import SharedGazeData
 from QYEyetracker_Server import EyetrackerServer
 from Json_manager import update_json, read_json
 from FineVision_Notebook import FineVision_Notebook
+from GazeTrackerRenderer import GazeTrackerRenderer
 
 # ==========================================
 # 2. 核心任务类 (FixationTask)
@@ -25,6 +26,8 @@ class FixationTask:
         self.scale_x = win_ctl.size[0] / win_sub.size[0]
         self.scale_y = win_ctl.size[1] / win_sub.size[1]
 
+        self.gaze_renderer = GazeTrackerRenderer(self.win_ctl,self.shared_data,self.scale_x,self.scale_y)
+
         # --- 视觉刺激初始化 ---
         # 猴子屏幕：中心注视点
         self.stim_fix_point = visual.Circle(win_sub, radius=5, fillColor='white', lineColor='white', pos=(0,0))
@@ -34,14 +37,14 @@ class FixationTask:
         self.ctl_gaze_cursor = visual.Circle(win_ctl, radius=6, fillColor='yellow', opacity=0.8)
         self.ctl_fix_window = visual.Circle(win_ctl, radius=100, fillColor=None, lineColor='green', lineWidth=2, pos=(0,0))
 
-        self.tail_line = visual.ShapeStim(
-            self.win_ctl,
-            vertices=[(0,0),(0,0)],
-            closeShape=False,
-            lineWidth=2.0,
-            lineColor='yellow',
-            opacity=0.6
-
+        #self.tail_line = visual.ShapeStim(
+        #    self.win_ctl,
+        #    vertices=[(0,0),(0,0)],
+        #    closeShape=False,
+        #    lineWidth=2.0,
+        #    lineColor='yellow',
+        #    opacity=0.6
+        #)
         self.trial_clock = core.Clock()
 
     def update_params(self):
@@ -63,7 +66,6 @@ class FixationTask:
         return dist <= self.fix_radius
 
     def run_task(self):
-    #STOPPED HERE, Need to check this loop!!!#
         """任务主循环：处理所有的 Trial 和状态机"""
         # 初始调用弹窗
         self.task_manager.prompt_for_parameters()
@@ -82,8 +84,8 @@ class FixationTask:
             # ====================================================
             if pause_requested:
                 print("\n[实验暂停] 正在呼出参数修改面板...")
-                # 视觉保护：给猴子灰屏
-                self.win_sub.color = "gray"
+                # 视觉保护：给猴子黑屏
+                self.win_sub.color = "black"
                 self.win_sub.flip()
                 
                 # 阻塞呼出参数修改窗口
@@ -102,7 +104,7 @@ class FixationTask:
                 self.win_sub.color = "black"
                 self.win_sub.flip()
                 self.win_ctl.flip()
-                core.wait(self.iti_time)
+            core.wait(self.iti_time)
 
             # ====================================================
             # 阶段 B：Wait for Fixation (等待猴子看过来)
@@ -121,19 +123,13 @@ class FixationTask:
                 self.ctl_fix_point.draw()
                 self.ctl_fix_window.draw()
                 
-                gaze = self.shared_data.get_latest_cal()
+                gaze = self.gaze_renderer.update_and_draw()
                 
-                if gaze['valid']:
-                    gx_ctl = gaze['x'] * self.scale_x
-                    gy_ctl = gaze['y'] * self.scale_y
-                    self.ctl_gaze_cursor.pos = (gx_ctl, gy_ctl)
-                    self.ctl_gaze_cursor.draw()
-                    
-                    if self.is_gaze_in_window(gaze['x'], gaze['y']):
-                        trial_status = "Acquired"
-                        self.win_ctl.flip()
-                        break # 进入 Hold 阶段
-                        
+                if gaze['valid'] and self.is_gaze_in_window(gaze['x'],gaze['y']):
+                    trial_status = "Acquired"
+                    break
+                
+                #self.win_sub.flip()
                 self.win_ctl.flip()
                 
                 # 在 Wait 期间允许检测按键
@@ -154,17 +150,13 @@ class FixationTask:
                     self.ctl_fix_point.draw()
                     self.ctl_fix_window.draw()
                     
-                    gaze = self.shared_data.get_latest_cal()
+                    gaze = self.gaze_renderer.update_and_draw()
                     
                     # 严苛判定：无效(眨眼)或移出窗口直接 Break
                     if not gaze['valid'] or not self.is_gaze_in_window(gaze['x'], gaze['y']):
                         trial_status = "Break"
                         break
                         
-                    gx_ctl = gaze['x'] * self.scale_x
-                    gy_ctl = gaze['y'] * self.scale_y
-                    self.ctl_gaze_cursor.pos = (gx_ctl, gy_ctl)
-                    self.ctl_gaze_cursor.draw()
                     self.win_ctl.flip()
                     
                     # 保持期间同样检测按键
@@ -177,6 +169,7 @@ class FixationTask:
 
             # ====================================================
             # 阶段 D：Outcome (结果与惩罚)
+            # Note: STOPPED HERE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             # ====================================================
             if trial_status == "Success":
                 success_count += 1
@@ -230,7 +223,7 @@ if __name__ == '__main__':
         screen=MONITOR_ID_CONTROL,
         size=[800, 600],   
         fullscr=False,     
-        waitBlanking=False,
+        waitBlanking=False,  #IMPORTANT: no V-Sync
         color='black',
         units='pix',
         title="Fixation Control View"
