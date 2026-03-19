@@ -4,6 +4,7 @@ from datetime import datetime
 from psychopy import visual, core, event, gui
 from multiprocessing import Process
 from collections import deque
+import traceback
 
 # 确保这些自定义模块在你的同一目录下
 from Shared_Memory_Util import SharedGazeData
@@ -11,22 +12,26 @@ from QYEyetracker_Server import EyetrackerServer
 from Json_manager import update_json, read_json
 from FineVision_Notebook import FineVision_Notebook
 from GazeTrackerRenderer import GazeTrackerRenderer
+from FineVision_Util import ArduinoController
 
 # ==========================================
 # 2. 核心任务类 (FixationTask)
 # ==========================================
 class FixationTask:
-    def __init__(self, win_sub, win_ctl, shared_data, task_manager):
+    def __init__(self, win_sub, win_ctl, shared_data, task_manager,is_simulating):
         self.win_sub = win_sub
         self.win_ctl = win_ctl
         self.shared_data = shared_data
         self.task_manager = task_manager
+        self.is_simulating = is_simulating
+
+        self.arduino = ArduinoController()
         
         # 计算双屏缩放比例
         self.scale_x = win_ctl.size[0] / win_sub.size[0]
         self.scale_y = win_ctl.size[1] / win_sub.size[1]
 
-        self.gaze_renderer = GazeTrackerRenderer(self.win_ctl,self.shared_data,self.scale_x,self.scale_y)
+        self.gaze_renderer = GazeTrackerRenderer(self.win_ctl,self.shared_data,self.scale_x,self.scale_y,self.is_simulating)
 
         # --- 视觉刺激初始化 ---
         # 猴子屏幕：中心注视点
@@ -104,12 +109,15 @@ class FixationTask:
                 self.win_sub.color = "black"
                 self.win_sub.flip()
                 self.win_ctl.flip()
+
             core.wait(self.iti_time)
 
             # ====================================================
             # 阶段 B：Wait for Fixation (等待猴子看过来)
             # ====================================================
             print(f"\n--- Trial {trial_count} 开始 ---")
+            self.arduino.trial_start()
+
             trial_status = "NoFix"
             self.trial_clock.reset()
             
@@ -118,8 +126,6 @@ class FixationTask:
             
             while self.trial_clock.getTime() < self.wait_time:
                 self.stim_fix_point.draw()
-                self.win_sub.flip()
-                
                 self.ctl_fix_point.draw()
                 self.ctl_fix_window.draw()
                 
@@ -129,7 +135,7 @@ class FixationTask:
                     trial_status = "Acquired"
                     break
                 
-                #self.win_sub.flip()
+                self.win_sub.flip()
                 self.win_ctl.flip()
                 
                 # 在 Wait 期间允许检测按键
@@ -145,8 +151,6 @@ class FixationTask:
                 
                 while self.trial_clock.getTime() < self.stim_duration:
                     self.stim_fix_point.draw()
-                    self.win_sub.flip()
-                    
                     self.ctl_fix_point.draw()
                     self.ctl_fix_window.draw()
                     
@@ -156,7 +160,8 @@ class FixationTask:
                     if not gaze['valid'] or not self.is_gaze_in_window(gaze['x'], gaze['y']):
                         trial_status = "Break"
                         break
-                        
+
+                    self.win_sub.flip()
                     self.win_ctl.flip()
                     
                     # 保持期间同样检测按键
@@ -169,21 +174,25 @@ class FixationTask:
 
             # ====================================================
             # 阶段 D：Outcome (结果与惩罚)
-            # Note: STOPPED HERE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             # ====================================================
             if trial_status == "Success":
                 success_count += 1
                 print(f" -> Result: SUCCESS! (给水 {self.reward_len}s)")
-                # TODO: 在此处加入你的给水代码
+                
+                self.arduino.trail_success()
+                reward_ms = int(self.reward_len * 1000)
+                self.arduino.reward(reward_ms)
                 
             elif trial_status == "Break":
                 print(f" -> Result: BREAK! (执行 Timeout 惩罚 {self.timeout_time}s)")
+                self.arduino.trial_break()
                 self.win_sub.color = "black"
                 self.win_sub.flip()
                 core.wait(self.timeout_time)
                 
             elif trial_status == "NoFix":
                 print(" -> Result: NO FIX (猴子未看屏幕)")
+                self.arduino.trial_nofix()
             
             print(f"当前正确率: {success_count}/{trial_count}")
             trial_count += 1
@@ -194,10 +203,14 @@ class FixationTask:
 # ==========================================
 if __name__ == '__main__':
     # 1. 启动眼动仪 Server 和共享内存
+    is_simulating = 1
     shared_data = SharedGazeData()
-    p_server = EyetrackerServer(shared_data, "EyeControl_SDK.dll", 100)
-    p_server.start()
-    print("EyeTracker Server Started.")
+    if is_simulating == 0:
+        p_server = EyetrackerServer(shared_data, "EyeControl_SDK.dll", 100)
+        p_server.start()
+        print("EyeTracker Server Started.")
+    else:
+        print("Running simulation mode.")
     
     # 2. 屏幕配置
     MONITOR_ID_SUBJECT = 1 
@@ -212,7 +225,7 @@ if __name__ == '__main__':
     win_subject = visual.Window(
         screen=MONITOR_ID_SUBJECT,
         size=[1920, 1080], 
-        fullscr=False,      # 实际电生理中如果需要高精时间，建议改为 True
+        fullscr=True,      # 实际电生理中如果需要高精时间，建议改为 True
         waitBlanking=True,
         color='black',
         units='pix',
@@ -246,13 +259,15 @@ if __name__ == '__main__':
 
     # 5. 实例化并运行 Fixation 任务
     try:
-        fix_task = FixationTask(win_subject, win_control, shared_data, task_manager)
+        fix_task = FixationTask(win_subject, win_control, shared_data, task_manager,is_simulating)
         fix_task.run_task()
     except Exception as e:
         print(f"任务运行中发生错误: {e}")
+        traceback.print_exc()
     finally:
         # 无论正常退出还是报错，必须安全回收资源
         print("正在关闭实验进程...")
+        fix_task.arduino.close()
         shared_data.stop()
         p_server.join()
         win_subject.close()

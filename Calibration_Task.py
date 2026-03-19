@@ -23,7 +23,7 @@ if __name__ == '__main__':
     MONITOR_ID_CONTROL = 0 
 
     # 1.1 生成当前任务的json文件，后缀为cal
-    timestamp = datetime.now().strftime("%Y%m%d")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     task_json_path = f"task_data_{timestamp}.json"
     
     update_json(task_json_path,"Session_start_time",timestamp)

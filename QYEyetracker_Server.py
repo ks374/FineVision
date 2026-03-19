@@ -48,8 +48,8 @@ class EyetrackerServer(Process):
                         'yl': gaze_raw.get('yl', 0.0),
                         'xr': gaze_raw.get('xr', 0.0),
                         'yr': gaze_raw.get('yr', 0.0),
-                        'timestamp': gaze_raw.get('timestamp', 0.0),
-                        'valid': gaze_raw.get('valid', True)
+                        #'timestamp': gaze_raw.get('timestamp', 0.0),
+                        #'valid': gaze_raw.get('valid', True)
                     }
                     # 4. 写入共享内存 (极速操作)
                     self.shared_data.update(formatted_data)

@@ -29,30 +29,49 @@ class ArduinoController:
                     print(f"[Hardware] Failed to connect Arduino: {e}")
         print("[Hardware] Warning: No Arduino found. Running in simulation mode.")
 
-    def send_cmd(self, cmd):
+    def send_event_code(self,code):
+        if self.conn and 0 <= code <= 127:
+            self.conn.write(bytes([code]))
+        #Usage: 
+
+    def trial_start(self):
+        self.send_event_code(1)
+
+    def trail_end(self):
+        self.send_event_code(2)
+
+    def trial_success(self):
+        self.send_event_code(3)
+    
+    def trial_nofix(self):
+        self.send_event_code(4)
+    
+    def trial_break(self):
+        self.send_event_code(5)
+    
+    def reward(self,duration_ms):
+        """
+        给予水奖励
+        传输协议：[指令头 128] + [高位字节] + [低位字节]
+        """
         if self.conn:
-            self.conn.write((cmd + "\n").encode())
-            # 如果需要读取返回，可以在这里 readline，但在高频循环中可能会阻塞
-            # return self.conn.readline().decode().strip()
+            high_byte = (duration_ms >> 8) & 0xFF
+            low_byte = duration_ms & 0xFF
 
-    def reward(self, duration_ms):
-        """给予水奖励"""
-        self.send_cmd(f"PUMP:,{duration_ms}")
-
-    def send_marker(self, code, duration=50):
-        """发送 TTL Marker (1=Start, 2=End, etc.)"""
-        self.send_cmd(f"MARKER:{code},{duration}")
+            payload = bytes([128,high_byte,low_byte])
+            self.conn.write(payload)
     
-    def pump(self,duration=14000):
-        self.send_cmd(f"PUMP:,{duration}")
-    
-    def drain(self,duration=32767):
-        self.send_cmd(f"DRAIN:,{duration}")
-
+    def drain(self, duration_ms=32767):
+        """排水 (指令头 129)"""
+        if self.conn:
+            high_byte = (duration_ms >> 8) & 0xFF
+            low_byte = duration_ms & 0xFF
+            self.conn.write(bytes([129, high_byte, low_byte]))
+            
     def stop_all(self):
-        self.send_cmd("STOP")
-    
-    #Note: No read_analog function for now. 
+        """紧急停止所有水泵 (指令头 130)"""
+        if self.conn:
+            self.conn.write(bytes([130]))
 
     def close(self):
         if self.conn:

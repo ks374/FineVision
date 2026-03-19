@@ -2,6 +2,9 @@
 from multiprocessing import Value, Lock, Array
 import ctypes
 import numpy as np  # 消费者读取 buffer 时通常需要转成 numpy 处理
+import os
+from Json_manager import read_json
+
 
 class SharedGazeData:
     def __init__(self, buffer_size=1000):
@@ -20,7 +23,7 @@ class SharedGazeData:
         self._yl = Value('d', 0.0)
         self._xr = Value('d', 0.0)
         self._yr = Value('d', 0.0)
-        self._timestamp = Value('d', 0.0)
+        #self._timestamp = Value('d', 0.0)
         self._valid = Value('i', 0)
 
         # --- 2. Buffer 历史数据 (用于不丢包记录) ---
@@ -29,13 +32,43 @@ class SharedGazeData:
         self._buf_yl = Array('d', buffer_size)
         self._buf_xr = Array('d', buffer_size)
         self._buf_yr = Array('d', buffer_size)
-        self._buf_ts = Array('d', buffer_size) # 时间戳 buffer
+        #self._buf_ts = Array('d', buffer_size) # 时间戳 buffer
         
         # 这是一个指针，指向 buffer 中最新写入的位置 (0 ~ 999)
         self._head_ptr = Value('i', -1) 
         
         # 控制位
         self._running = Value('b', True)
+
+        self._load_default_calibration()
+    
+    def _load_default_calibration(self):
+        fallback_left = {'ox': 0.0, 'oy': 0.0, 'gx': 1.0, 'gy': 1.0}
+        fallback_right = {'ox': 0.0, 'oy': 0.0, 'gx': 1.0, 'gy': 1.0}
+        
+        # 2. 使用你的 Json_manager 一键读取
+        settings = read_json("default_setting.json") 
+        
+        # 安全兜底：如果 read_json 失败返回了 None，给它一个空字典防止后续 .get() 报错
+        if not settings:
+            settings = {}
+
+        # 3. 提取数据（如果 settings 里没找到对应的 key，就用 fallback）
+        left_cal = settings.get("default_left_cal", fallback_left)
+        right_cal = settings.get("default_right_cal", fallback_right)
+
+        print("[SharedGazeData] 初始化完成，已通过 Json_manager 加载校准参数。")
+
+        # 4. 将读取到的参数写入共享内存
+        # 再次使用 .get() 防范 json 内部字典缺斤少两
+        self.set_calibration_left(
+            left_cal.get('ox', 0.0), left_cal.get('oy', 0.0), 
+            left_cal.get('gx', 1.0), left_cal.get('gy', 1.0)
+        )
+        self.set_calibration_right(
+            right_cal.get('ox', 0.0), right_cal.get('oy', 0.0), 
+            right_cal.get('gx', 1.0), right_cal.get('gy', 1.0)
+        )
 
     def update(self, data):
         """
@@ -48,8 +81,11 @@ class SharedGazeData:
             self._yl.value = data.get('yl', 0.0)
             self._xr.value = data.get('xr', 0.0)
             self._yr.value = data.get('yr', 0.0)
-            self._timestamp.value = data.get('timestamp', 0.0)
-            self._valid.value = 1 if data.get('valid', True) else 0
+            #self._timestamp.value = data.get('timestamp', 0.0)
+            if self._xl.value == -999 and self._yl.value == -999 and self._xr.value == -999 and self._yr.value == -999:
+                self._valid.value = 1
+            else:
+                self._valid.value = 0
 
             # B. 更新 Buffer (给数据保存用)
             # 计算下一个写入位置：(当前位置 + 1) % 总长度
@@ -60,7 +96,7 @@ class SharedGazeData:
             self._buf_yl[next_idx] = self._yl.value
             self._buf_xr[next_idx] = self._xr.value
             self._buf_yr[next_idx] = self._yr.value
-            self._buf_ts[next_idx] = self._timestamp.value
+            #self._buf_ts[next_idx] = self._timestamp.value
             
             # 更新指针
             self._head_ptr.value = next_idx
@@ -73,7 +109,7 @@ class SharedGazeData:
             return {
                 'xl': self._xl.value, 'yl': self._yl.value,
                 'xr': self._xr.value, 'yr': self._yr.value,
-                'timestamp': self._timestamp.value,
+                #'timestamp': self._timestamp.value,
                 'valid': bool(self._valid.value)
             }
     
@@ -92,7 +128,7 @@ class SharedGazeData:
             'yl': yl ,
             'xr': xr ,
             'yr': yr ,
-            'timestamp': data['timestamp'],
+            #'timestamp': data['timestamp'],
             'valid': bool(data['valid'])
         }
 
