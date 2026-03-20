@@ -5,6 +5,7 @@ from psychopy import visual, core, event, gui
 from multiprocessing import Process
 from collections import deque
 import traceback
+import pandas as pd
 
 # 确保这些自定义模块在你的同一目录下
 from Shared_Memory_Util import SharedGazeData
@@ -51,6 +52,9 @@ class FixationTask:
         #    opacity=0.6
         #)
         self.trial_clock = core.Clock()
+
+        self.behavior_log = []
+        self.session_time = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     def update_params(self):
         """从参数管理器中拉取最新的参数并更新类的属性"""
@@ -195,6 +199,14 @@ class FixationTask:
                 self.arduino.trial_nofix()
             
             print(f"当前正确率: {success_count}/{trial_count}")
+            
+
+            self.behavior_lod.append({
+                "Trial":trial_count,
+                "Status":trial_status,
+                "Time_End":core.getTime()
+            })
+
             trial_count += 1
 
 
@@ -216,10 +228,8 @@ if __name__ == '__main__':
     MONITOR_ID_SUBJECT = 1 
     MONITOR_ID_CONTROL = 0 
 
-    # 生成当前实验的追踪 JSON
+    # Log_prep
     timestamp = datetime.now().strftime("%Y%m%d")
-    task_json_path = f"task_data_fixation_{timestamp}.json"
-    update_json(task_json_path, "Session_start_time", timestamp)
 
     print("正在初始化双屏幕环境...")
     win_subject = visual.Window(
@@ -266,6 +276,12 @@ if __name__ == '__main__':
         traceback.print_exc()
     finally:
         # 无论正常退出还是报错，必须安全回收资源
+        if hasattr(fix_task,'behavior_log') and len(fix_task.behavior_log) > 0:
+            csv_name = f"Fixation_task_log_{timestamp}.csv"
+            pd.DataFrame(fix_task.behavior_log).to_csv(csv_name,index=False)
+            print(f"Log data saved.")
+        
+        
         print("正在关闭实验进程...")
         fix_task.arduino.close()
         shared_data.stop()

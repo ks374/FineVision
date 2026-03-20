@@ -83,10 +83,11 @@ class SpikeGadgetsBridge:
     """
     SpikeGadgets 通信接口。
     """
-    def __init__(self, connection_name='source.spikes', connect=True):
+    def __init__(self, is_simulating = 0, connection_name='source.spikes'):
+        self.is_simulating = is_simulating
         self.connected = False
         self.subscriber = None
-        if connect:
+        if is_simulating == 0:
             self.connect(connection_name)
 
     def connect(self, connection_name):
