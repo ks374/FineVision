@@ -37,7 +37,7 @@ class ArduinoController:
     def trial_start(self):
         self.send_event_code(1)
 
-    def trail_end(self):
+    def trial_end(self):
         self.send_event_code(2)
 
     def trial_success(self):
