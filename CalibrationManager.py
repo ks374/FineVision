@@ -62,6 +62,9 @@ class CalibrationManager:
 
             #Define the tail for the gaze position
             gaze_trail = deque(maxlen=60)
+            
+            last_print_time = core.getTime()
+            print_interval = 0.5  # 打印间隔，单位：秒（这里设置为0.5秒输出一次）
 
             while True:
                 # 1. 获取最新视线 (此时拿到的是经过 gain=1, offset=0 计算后的“伪原始”数据)
@@ -80,6 +83,11 @@ class CalibrationManager:
                     # 假设 raw data 也是以屏幕中心为 0 (或者在 Server 端做过基础去中心化)
                     gx_scaled = gaze['x'] * self.scale_x
                     gy_scaled = gaze['y'] * self.scale_y
+                    
+                    current_time = core.getTime()
+                    if current_time - last_print_time >= print_interval:
+                        print(f"[点 {i+1}/9] 实时视线 -> 原始 X:{gaze['x']:.1f}, Y:{gaze['y']:.1f} | 缩放后 X:{gx_scaled:.1f}, Y:{gy_scaled:.1f}")
+                        last_print_time = current_time
 
                     gaze_trail.append((gx_scaled,gy_scaled))
 

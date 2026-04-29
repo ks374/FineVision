@@ -3,6 +3,8 @@ import ctypes
 from ctypes import wintypes
 import time
 import os
+import cv2
+import numpy as np
 
 # %%
 class StEyeCtlEyeDataEx(ctypes.Structure):
@@ -44,6 +46,16 @@ class QYTracker:
             self._setup_prototypes()
             self.is_tracking = False
             print("Successfully loaded QY EyeTracker SDK.")
+            
+            self.part_width = 640
+            self.part_height = 400
+            self.part_size = self.part_width * self.part_height
+            
+            self._part_array = (ctypes.c_ubyte * self.part_size)()
+            self._full_array = (ctypes.c_ubyte * (1920 * 1200))()
+            self._left_array = (ctypes.c_ubyte * (360 * 180))()
+            self._right_array = (ctypes.c_ubyte * (360 * 180))()
+            
         except Exception as e:
             print(f"Failed to load SDK: {e}")
 
@@ -58,6 +70,59 @@ class QYTracker:
         self.sdk.EyeControl_StartRecognition.restype = None
         self.sdk.EyeControl_StopRecognition.restype = None
         self.sdk.EyeControl_Close.restype = None
+        
+        PBYTE = ctypes.POINTER(ctypes.c_ubyte)
+        PINT = ctypes.POINTER(ctypes.c_int)
+
+        self.sdk.EyeControl_GetImageBuffer.restype = wintypes.BOOL
+        self.sdk.EyeControl_GetImageBuffer.argtypes = [
+            ctypes.POINTER(PBYTE),  # pBuf
+            ctypes.POINTER(PBYTE),  # partBuf
+            PINT,                   # nBufWidth
+            PINT,                   # nBufHeight
+            ctypes.POINTER(PBYTE),  # leftBuf
+            ctypes.POINTER(PBYTE),  # rightBuf
+            PINT,                   # eyeBufWidth
+            PINT                    # eyeBufHeight
+        ]
+        
+    def get_image(self):
+        """
+        拉取最新一帧眼动仪画面，将其转换为 OpenCV 可用的 numpy 数组。
+        为保证性能，这里只返回 640x400 的缩略图。
+        """
+        PBYTE = ctypes.POINTER(ctypes.c_ubyte)
+        
+        # 将我们预分配的内存转为指针
+        pBuf = ctypes.cast(self._full_array, PBYTE)
+        partBuf = ctypes.cast(self._part_array, PBYTE)
+        leftBuf = ctypes.cast(self._left_array, PBYTE)
+        rightBuf = ctypes.cast(self._right_array, PBYTE)
+
+        nBufWidth = ctypes.c_int(0)
+        nBufHeight = ctypes.c_int(0)
+        eyeBufWidth = ctypes.c_int(0)
+        eyeBufHeight = ctypes.c_int(0)
+
+        # 调用底层接口
+        ret = self.sdk.EyeControl_GetImageBuffer(
+            ctypes.byref(pBuf), ctypes.byref(partBuf),
+            ctypes.byref(nBufWidth), ctypes.byref(nBufHeight),
+            ctypes.byref(leftBuf), ctypes.byref(rightBuf),
+            ctypes.byref(eyeBufWidth), ctypes.byref(eyeBufHeight)
+        )
+
+        if ret:
+            # 使用 numpy 的 ctypeslib 将 C 内存直接映射为 Python 数组，做到零拷贝(Zero-copy)，速度极快
+            img_array = np.ctypeslib.as_array(partBuf, shape=(self.part_size,))
+            
+            # 将 1D 数组重塑为 2D 图像矩阵 (高度, 宽度)
+            img_reshaped = img_array.reshape((self.part_height, self.part_width))
+            
+            # 如果是红外相机，这通常是 8-bit 单通道灰度图。可以直接用 cv2 显示。
+            return img_reshaped
+            
+        return None
 
     def connect(self, frame_rate=100):
         # 初始化并开始识别

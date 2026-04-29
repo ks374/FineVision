@@ -1,6 +1,7 @@
 # %%
 import time
 from multiprocessing import Process
+import cv2
 # 假设你之前的 SDK 封装保存在 QYTracker_util.py 中
 from FV_QY_Eyetracker import QYTracker 
 
@@ -54,6 +55,16 @@ class EyetrackerServer(Process):
                     # 4. 写入共享内存 (极速操作)
                     self.shared_data.update(formatted_data)
                 
+                # --- 新增：4. 抓取并显示图像 ---
+                img = tracker.get_image()
+                if img is not None:
+                    # 显示图像
+                    cv2.imshow("EyeTracker Live Feed", img)
+                
+                # 必须加入 cv2.waitKey，否则 OpenCV 窗口会未响应死机。
+                # 传入 1 意味着只阻塞 1 毫秒处理窗口事件。
+                cv2.waitKey(1)
+                
                 # 5. 控制采样循环频率
                 # 稍微 sleep 一下，防止把 CPU 跑满，给系统留点呼吸空间
                 # 0.002s = 500Hz，足以覆盖 100Hz 的眼动仪采样
@@ -61,6 +72,7 @@ class EyetrackerServer(Process):
 
         finally:
             # 6. 安全关闭
+            cv2.destroyAllWindows()
             tracker.stop_tracking()
             tracker.close()
             print("[Server] 后台服务已安全关闭。")

@@ -83,9 +83,9 @@ class SharedGazeData:
             self._yr.value = data.get('yr', 0.0)
             #self._timestamp.value = data.get('timestamp', 0.0)
             if self._xl.value == -999 and self._yl.value == -999 and self._xr.value == -999 and self._yr.value == -999:
-                self._valid.value = 1
-            else:
                 self._valid.value = 0
+            else:
+                self._valid.value = 1
 
             # B. 更新 Buffer (给数据保存用)
             # 计算下一个写入位置：(当前位置 + 1) % 总长度

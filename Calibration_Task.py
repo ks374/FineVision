@@ -20,7 +20,7 @@ if __name__ == '__main__':
 #    你的电脑可能是 Screen 0 (主屏), 猴子显示器是 Screen 1
 #   可以在 Windows "显示设置" 里确认编号
     MONITOR_ID_SUBJECT = 1 
-    MONITOR_ID_CONTROL = 0 
+    MONITOR_ID_CONTROL = 0
 
     # 1.1 生成当前任务的json文件，后缀为cal
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
