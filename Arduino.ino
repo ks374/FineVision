@@ -17,7 +17,7 @@ void setup() {
   
   // 默认关闭水泵 (假设 HIGH 为关)
   digitalWrite(pumpEnablePin, HIGH);
-  analogWrite(pumpVoltagePin, 255); // 全速
+  analogWrite(pumpVoltagePin, 0); // 全速
   digitalWrite(pumpDirPin, LOW);    // 正向
   
   // 🌟 核心：把 Arduino Uno 的 8, 9, 10, 11 引脚设为输出模式
@@ -51,34 +51,40 @@ void loop() {
     // =====================================
     else if (cmd == 128) { // 128: Reward 正常给水
       // 等待后面跟着的 2 个字节的参数 (持续时间)
-      while (Serial.available() < 2) { /* 死等几微秒 */ }
+      while (Serial.available() < 3) { /* 死等几微秒 */ }
       byte highByte = Serial.read();
       byte lowByte = Serial.read();
+      byte speed = Serial.read(); // 新增：读取转速 (0=0V, 255=5V)
       
       // 拼凑出我们要的毫秒数
       unsigned int duration = (highByte << 8) | lowByte;
       
       // 开启水泵 (非阻塞！)
-      digitalWrite(pumpEnablePin, LOW); 
+      analogWrite(pumpVoltagePin, speed); // 1. 设置转速 (0-5V)
+      digitalWrite(pumpDirPin, LOW);      // 2. 顺时针 (正向)
+      digitalWrite(pumpEnablePin, LOW);   // 3. 开启水泵
       pumpEndTime = millis() + duration;
       isPumping = true;
     }
     
     else if (cmd == 129) { // 129: Drain 排水
-      while (Serial.available() < 2) {}
+      while (Serial.available() < 3) {}
       byte high = Serial.read();
       byte low = Serial.read();
+      byte speed = Serial.read(); // 读取转速
       unsigned int duration = (high << 8) | low;
       
       // 反向水泵
-      digitalWrite(pumpDirPin, HIGH);
-      digitalWrite(pumpEnablePin, LOW);
+      analogWrite(pumpVoltagePin, speed); // 1. 设置转速 (0-5V)
+      digitalWrite(pumpDirPin, HIGH);     // 2. 逆时针 (反向)
+      digitalWrite(pumpEnablePin, LOW);   // 3. 开启水泵
       pumpEndTime = millis() + duration;
       isPumping = true;
     }
     
     else if (cmd == 130) { // 130: 紧急停止
-      digitalWrite(pumpEnablePin, HIGH);
+      digitalWrite(pumpEnablePin, HIGH);  // 关闭使能
+      analogWrite(pumpVoltagePin, 0);     // 建议停机时把电压也降到 0
       isPumping = false;
     }
   }
@@ -87,6 +93,7 @@ void loop() {
   // 因为没有用 delay()，所以在这个检查期间，Arduino 可以随时回去接收 TTL 信号！
   if (isPumping && millis() >= pumpEndTime) {
     digitalWrite(pumpEnablePin, HIGH); // 关水泵
+    analogWrite(pumpVoltagePin, 0);    // 转速归零 (可选，更安全)
     digitalWrite(pumpDirPin, LOW);     // 恢复正向
     isPumping = false;
   }

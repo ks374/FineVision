@@ -49,24 +49,36 @@ class ArduinoController:
     def trial_break(self):
         self.send_event_code(5)
     
-    def reward(self,duration_ms):
+    def reward(self,duration_ms,speed=255):
         """
-        给予水奖励
-        传输协议：[指令头 128] + [高位字节] + [低位字节]
+        给予水奖励 (顺时针)
+        传输协议：[指令头 128] + [高位字节] + [低位字节] + [速度控制字节]
+        :param duration_ms: 给水时间 (毫秒)
+        :param speed: 水泵转速 0-255 (0=0V, 127≈2.5V, 255=5V)
         """
         if self.conn:
+            # 安全限制：确保 speed 落在 0-255 的整数范围内
+            speed_byte = max(0, min(255, int(speed)))
+
             high_byte = (duration_ms >> 8) & 0xFF
             low_byte = duration_ms & 0xFF
 
-            payload = bytes([128,high_byte,low_byte])
+            payload = bytes([128,high_byte,low_byte,speed_byte])
             self.conn.write(payload)
     
-    def drain(self, duration_ms=32767):
-        """排水 (指令头 129)"""
+    def drain(self, duration_ms=32767, speed=255):
+        """
+        排水 (逆时针，指令头 129)
+        传输协议：[指令头 129] + [高位字节] + [低位字节] + [速度控制字节]
+        """
         if self.conn:
+            speed_byte = max(0, min(255, int(speed)))
+            
             high_byte = (duration_ms >> 8) & 0xFF
             low_byte = duration_ms & 0xFF
-            self.conn.write(bytes([129, high_byte, low_byte]))
+            
+            # 发送 4 个字节
+            self.conn.write(bytes([129, high_byte, low_byte, speed_byte]))
             
     def stop_all(self):
         """紧急停止所有水泵 (指令头 130)"""
