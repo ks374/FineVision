@@ -54,6 +54,9 @@ class CalibrationManager:
 
         print("开始校准：请注视屏幕上的红点，按下空格键采集当前点。")
 
+        auto_fix_radius = 200.0
+        auto_fix_time = 0.8
+
         for i, (tx, ty) in enumerate(self.targets):
             self.stim_target.pos = (tx, ty)
             self.ctl_target.pos = (tx * self.scale_x, ty * self.scale_y)
@@ -65,9 +68,12 @@ class CalibrationManager:
             #Define the tail for the gaze position
             gaze_trail = deque(maxlen=60)
             smooth_buffer = deque(maxlen=5) # 新增：用于存储最近5个点来计算滑动平均
+
+            fix_clock = core.Clock()
+            is_fixating = False
             
-            last_print_time = core.getTime()
-            print_interval = 0.5  # 打印间隔，单位：秒（这里设置为0.5秒输出一次）
+            #last_print_time = core.getTime()
+            #print_interval = 0.5  # 打印间隔，单位：秒（这里设置为0.5秒输出一次）
 
             while True:
                 # 1. 获取最新视线 (此时拿到的是经过 gain=1, offset=0 计算后的“伪原始”数据)
@@ -95,6 +101,21 @@ class CalibrationManager:
                     gx_scaled = sum(p[0] for p in smooth_buffer) / len(smooth_buffer)
                     gy_scaled = sum(p[1] for p in smooth_buffer) / len(smooth_buffer)
 
+                    current_gaze_x_sub = gx_scaled/self.scale_x
+                    current_gaze_y_sub = gy_scaled/self.scale_y
+                    dist = math.hypot(current_gaze_x_sub - tx, current_gaze_y_sub - ty)
+
+                    if dist <= auto_fix_radius:
+                        if not is_fixating:
+                            is_fixating = True
+                            fix_clock.reset()
+                        elif fix_clock.getTime() >= auto_fix_time:
+                            print(f" -> 自动判定成功 (持续注视 {auto_fix_time}s)")
+                            break
+                    else:
+                        if is_fixating:
+                            is_fixating = False
+
                     #current_time = core.getTime()
                     #if current_time - last_print_time >= print_interval:
                     #    print(f"[点 {i+1}/9] 实时视线 -> 原始 X:{gaze['x']:.1f}, Y:{gaze['y']:.1f} | 缩放后 X:{gx_scaled:.1f}, Y:{gy_scaled:.1f}")
@@ -109,20 +130,20 @@ class CalibrationManager:
                     self.ctl_gaze.pos = (gx_scaled,gy_scaled)
                     self.ctl_gaze.draw()
                 
-                # 2. 绘制目标
+                # 2. 绘制目标（之前画出window）
+                visual.Circle(self.win_ctl, radius=auto_fix_radius * self.scale_x, 
+                              pos=(tx * self.scale_x, ty * self.scale_y), 
+                              lineColor='grey', lineWidth=1, fillColor=None, opacity=0.5).draw()
                 self.win_ctl.flip()
+                
 
                 # 3. 检测按键退出循环
                 keys = event.getKeys()
                 if 'space' in keys:
-                    if self.arduino is not None:
-                        # 给予 100 毫秒的水滴奖励（你可以把这个时长做成类属性或函数参数方便调节）
-                        self.arduino.reward(duration_ms=100) 
-                        print(f" -> 触发液体奖励 (100ms)")
                     break # 跳出 while，进入采集阶段
                 elif 'escape' in keys:
                     print("校准中止")
-                    return False
+                    return (default_left_cal, default_right_cal)
 
             # --- Step B: 采集阶段 ---
             print(f"正在采集点 {i+1}/9...")
@@ -136,7 +157,11 @@ class CalibrationManager:
                 # 注意：snapshot 返回的是 numpy array，取 [0] 拿到数值
                 samples.append([gaze['xl'], gaze['yl'], gaze['xr'], gaze['yr']])
                 core.wait(0.01) 
-            
+            if self.arduino is not None:
+                # 给予 100 毫秒的水滴奖励（你可以把这个时长做成类属性或函数参数方便调节）
+                self.arduino.reward(duration_ms=100) 
+                print(f" -> 触发液体奖励 (100ms)")
+
             avg_raw = np.mean(samples, axis=0)
             collected_data.append((tx, ty, avg_raw[0], avg_raw[1], avg_raw[2], avg_raw[3]))
             print(f" -> Raw: (xl: {avg_raw[0]:.1f}, yl:{avg_raw[1]:.1f},xr:{avg_raw[2]:.1f},yr:{avg_raw[3]:.1f})")
@@ -213,6 +238,11 @@ class CalibrationManager:
                 samples.append([gaze['xl'], gaze['yl'], gaze['xr'], gaze['yr']])
                 core.wait(0.01)
 
+            if self.arduino is not None:
+                # 给予 100 毫秒的水滴奖励（你可以把这个时长做成类属性或函数参数方便调节）
+                self.arduino.reward(duration_ms=100) 
+                print(f" -> 触发液体奖励 (100ms)")
+                
             avg_raw = np.mean(samples, axis=0)
             collected_data.append((tx, ty, avg_raw[0], avg_raw[1], avg_raw[2], avg_raw[3]))
             print(f" -> Raw: (xl:{avg_raw[0]:.1f}, yl:{avg_raw[1]:.1f}, xr:{avg_raw[2]:.1f}, yr:{avg_raw[3]:.1f})")

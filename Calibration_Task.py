@@ -88,7 +88,7 @@ if __name__ == '__main__':
     update_json(task_json_path,"left_cal",left_cal)
     update_json(task_json_path,"right_cal",right_cal)
 
-    (left_cal,right_cal) = calib_manager.run_calibration(left_cal,right_cal)
+    #(left_cal,right_cal) = calib_manager.run_calibration(left_cal,right_cal)
 
     
 

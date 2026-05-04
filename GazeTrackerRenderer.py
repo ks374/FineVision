@@ -27,7 +27,7 @@ class GazeTrackerRenderer:
 
     def update_and_draw(self):
         """在每一帧渲染前调用，自动获取数据并画上去"""
-        if self.is_simulation:
+        if self.is_simulating:
             m_pos = self.mouse.getPos()
             gx,gy = m_pos[0],m_pos[1]
             gaze = {

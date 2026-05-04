@@ -36,10 +36,10 @@ class FixationTask:
 
         # --- 视觉刺激初始化 ---
         # 猴子屏幕：中心注视点
-        self.stim_fix_point = visual.Circle(win_sub, radius=5, fillColor='white', lineColor='white', pos=(0,0))
+        self.stim_fix_point = visual.Circle(win_sub, radius=20, fillColor='white', lineColor='white', pos=(0,0))
         
         # 控制台屏幕：包含注视点、实时眼动光标、隐形的“注视窗口”边界
-        self.ctl_fix_point = visual.Circle(win_ctl, radius=5 * self.scale_x, fillColor='white', pos=(0,0))
+        self.ctl_fix_point = visual.Circle(win_ctl, radius=20 * self.scale_x, fillColor='white', pos=(0,0))
         self.ctl_gaze_cursor = visual.Circle(win_ctl, radius=6, fillColor='yellow', opacity=0.8)
         self.ctl_fix_window = visual.Circle(win_ctl, radius=100, fillColor=None, lineColor='green', lineWidth=2, pos=(0,0))
 
@@ -122,6 +122,11 @@ class FixationTask:
             print(f"\n--- Trial {trial_count} 开始 ---")
             self.arduino.trial_start()
 
+            t_trial_start = core.getTime()
+            t_draw_finish = None
+            t_gaze_enter = None
+            first_draw_done = False
+
             trial_status = "NoFix"
             self.trial_clock.reset()
             
@@ -132,11 +137,16 @@ class FixationTask:
                 self.stim_fix_point.draw()
                 self.ctl_fix_point.draw()
                 self.ctl_fix_window.draw()
+
+                if not first_draw_done:
+                    t_draw_finish = core.getTime()
+                    first_draw_done = True
                 
                 gaze = self.gaze_renderer.update_and_draw()
                 
                 if gaze['valid'] and self.is_gaze_in_window(gaze['x'],gaze['y']):
                     trial_status = "Acquired"
+                    t_gaze_enter = core.getTime()
                     break
                 
                 self.win_sub.flip()
@@ -204,6 +214,9 @@ class FixationTask:
             self.behavior_log.append({
                 "Trial":trial_count,
                 "Status":trial_status,
+                "Time_TrailStart":t_trial_start,
+                "Time_DrawFinish":t_draw_finish,
+                "Time_GazeEnter":t_gaze_enter,
                 "Time_End":core.getTime()
             })
 
@@ -257,7 +270,7 @@ if __name__ == '__main__':
         'Subject ID': 'Monkey_H18',
         'Wait Time (s)': 10.0,        
         'Stim Duration (s)': 1.5,        
-        'Fix Window Radius (pix)': 250, 
+        'Fix Window Radius (pix)': 500, 
         'Reward Length (s)': 0.25,       
         'ITI (s)': 5.0,                  
         'Timeout (s)': 2.5               
