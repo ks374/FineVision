@@ -35,44 +35,59 @@ class EyetrackerServer(Process):
         # 2. 开启算法引擎
         tracker.start_tracking()
         print("[Server] 追踪引擎已启动，正在写入数据...")
+        
+        last_timestamp = -1.0
+        
+        poll_interval = 1.0/250.0
+        last_poll_time = time.perf_counter()
 
         try:
             while self.shared_data.is_running:
                 # 3. 抓取数据 (调用 SDK 获取眼动数据接口 [cite: 14])
-                gaze_raw = tracker.get_gaze()
+                current_time_perf = time.perf_counter()
+                if current_time_perf - last_poll_time >= poll_interval:
+                    gaze_raw = tracker.get_gaze()
                 
-                if gaze_raw:
-                    # 将 SDK 的格式映射到你的 SharedGazeData 字典格式
-                    # 注意：根据 SDK，stEyeCtl_EyeDataEx 包含双眼和原始点数据 [cite: 47-60]
-                    formatted_data = {
-                        'xl': gaze_raw.get('xl', 0.0),
-                        'yl': gaze_raw.get('yl', 0.0),
-                        'xr': gaze_raw.get('xr', 0.0),
-                        'yr': gaze_raw.get('yr', 0.0),
-                        #'timestamp': gaze_raw.get('timestamp', 0.0),
-                        #'valid': gaze_raw.get('valid', True)
-                    }
-                    # 4. 写入共享内存 (极速操作)
-                    self.shared_data.update(formatted_data)
+                
+                    if gaze_raw:
+                        # 将 SDK 的格式映射到你的 SharedGazeData 字典格式
+                        # 注意：根据 SDK，stEyeCtl_EyeDataEx 包含双眼和原始点数据 [cite: 47-60]
+                        #current_frame_time = gaze_raw.get('time_frame',0.0)
+                        
+                        
+                        formatted_data = {
+                            'xl': gaze_raw.get('xl', 0.0),
+                            'yl': gaze_raw.get('yl', 0.0),
+                            'xr': gaze_raw.get('xr', 0.0),
+                            'yr': gaze_raw.get('yr', 0.0),
+                            #'timestamp': gaze_raw.get('time_frame', 0.0),
+                            #'valid': gaze_raw.get('valid', True)
+                        }
+                        # 4. 写入共享内存 (极速操作)
+                        self.shared_data.update(formatted_data)
+                        #last_timestamp = current_frame_time
+                    last_poll_time = current_time_perf
+                else:
+                    time.sleep(0)
                 
                 # --- 新增：4. 抓取并显示图像 ---
-                img = tracker.get_image()
-                if img is not None:
-                    # 显示图像
-                    cv2.imshow("EyeTracker Live Feed", img)
+                #img = tracker.get_image()
+                #if img is not None:
+                #    # 显示图像
+                #    cv2.imshow("EyeTracker Live Feed", img)
                 
                 # 必须加入 cv2.waitKey，否则 OpenCV 窗口会未响应死机。
                 # 传入 1 意味着只阻塞 1 毫秒处理窗口事件。
-                cv2.waitKey(1)
+                #cv2.waitKey(1)
                 
                 # 5. 控制采样循环频率
                 # 稍微 sleep 一下，防止把 CPU 跑满，给系统留点呼吸空间
                 # 0.002s = 500Hz，足以覆盖 100Hz 的眼动仪采样
-                time.sleep(0.002) 
+                #time.sleep(0.002) 
 
         finally:
             # 6. 安全关闭
-            cv2.destroyAllWindows()
+            #cv2.destroyAllWindows()
             tracker.stop_tracking()
             tracker.close()
             print("[Server] 后台服务已安全关闭。")

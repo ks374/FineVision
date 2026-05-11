@@ -110,7 +110,8 @@ class FixationTask:
                 pause_requested = False 
             else:
                 # 正常 ITI 维持黑屏
-                self.win_sub.color = "black"
+                self.win_sub.color = 'black'
+                self.win_ctl.color = 'black'
                 self.win_sub.flip()
                 self.win_ctl.flip()
 
@@ -193,19 +194,27 @@ class FixationTask:
                 success_count += 1
                 print(f" -> Result: SUCCESS! (给水 {self.reward_len}s)")
                 
-                self.arduino.trail_success()
+                self.arduino.trial_success()
                 reward_ms = int(self.reward_len * 1000)
                 self.arduino.reward(reward_ms)
                 
             elif trial_status == "Break":
                 print(f" -> Result: BREAK! (执行 Timeout 惩罚 {self.timeout_time}s)")
-                self.arduino.trial_break()
-                self.win_sub.color = "black"
+                self.win_sub.color = 'black'
+                self.win_ctl.color = 'black'
                 self.win_sub.flip()
+                self.win_ctl.flip()
+                self.win_sub.flip()
+                self.win_ctl.flip()
+                self.arduino.trial_break()
                 core.wait(self.timeout_time)
                 
             elif trial_status == "NoFix":
                 print(" -> Result: NO FIX (猴子未看屏幕)")
+                self.win_sub.color = 'black'
+                self.win_ctl.color = 'black'
+                self.win_sub.flip()
+                self.win_ctl.flip()
                 self.arduino.trial_nofix()
             
             print(f"当前正确率: {success_count}/{trial_count}")
@@ -214,7 +223,7 @@ class FixationTask:
             self.behavior_log.append({
                 "Trial":trial_count,
                 "Status":trial_status,
-                "Time_TrailStart":t_trial_start,
+                "Time_TrialStart":t_trial_start,
                 "Time_DrawFinish":t_draw_finish,
                 "Time_GazeEnter":t_gaze_enter,
                 "Time_End":core.getTime()
@@ -228,7 +237,7 @@ class FixationTask:
 # ==========================================
 if __name__ == '__main__':
     # 1. 启动眼动仪 Server 和共享内存
-    is_simulating = 1
+    is_simulating = 0
     shared_data = SharedGazeData()
     if is_simulating == 0:
         p_server = EyetrackerServer(shared_data, "EyeControl_SDK.dll", 100)
@@ -271,7 +280,7 @@ if __name__ == '__main__':
         'Wait Time (s)': 10.0,        
         'Stim Duration (s)': 1.5,        
         'Fix Window Radius (pix)': 500, 
-        'Reward Length (s)': 0.25,       
+        'Reward Length (s)': 1,       
         'ITI (s)': 5.0,                  
         'Timeout (s)': 2.5               
     }
@@ -283,7 +292,8 @@ if __name__ == '__main__':
     # 5. 实例化并运行 Fixation 任务
     try:
         fix_task = FixationTask(win_subject, win_control, shared_data, task_manager,is_simulating)
-        fix_task.run_task()
+        while True:
+            fix_task.run_task()
     except Exception as e:
         print(f"任务运行中发生错误: {e}")
         traceback.print_exc()
@@ -298,7 +308,8 @@ if __name__ == '__main__':
         print("正在关闭实验进程...")
         fix_task.arduino.close()
         shared_data.stop()
-        p_server.join()
+        if is_simulating != 1:
+            p_server.join()
         win_subject.close()
         win_control.close()
         core.quit()

@@ -1,5 +1,6 @@
 # %%
 import numpy as np
+import math
 from psychopy import visual, core, event
 from Shared_Memory_Util import SharedGazeData
 #from QYEyetracker_Server import EyetrackerServer
@@ -56,6 +57,19 @@ class CalibrationManager:
 
         auto_fix_radius = 200.0
         auto_fix_time = 0.8
+        
+        fix_windows_9pt = []
+        for (vx, vy) in self.targets:
+            circle = visual.Circle(
+                self.win_ctl,
+                radius=auto_fix_radius * self.scale_x,
+                pos=(vx * self.scale_x, vy * self.scale_y),
+                lineColor='grey',
+                lineWidth=1,
+                fillColor=None,
+                opacity=0.3  # 非活动状态设为较透明
+            )
+            fix_windows_9pt.append(circle)
 
         for i, (tx, ty) in enumerate(self.targets):
             self.stim_target.pos = (tx, ty)
@@ -74,7 +88,7 @@ class CalibrationManager:
             
             #last_print_time = core.getTime()
             #print_interval = 0.5  # 打印间隔，单位：秒（这里设置为0.5秒输出一次）
-
+            #debug = 0
             while True:
                 # 1. 获取最新视线 (此时拿到的是经过 gain=1, offset=0 计算后的“伪原始”数据)
                 # 注意：这里我们只画左眼或者双眼中心作为参考
@@ -84,6 +98,10 @@ class CalibrationManager:
                 self.win_sub.flip()
 
                 self.ctl_target.draw()
+                
+                for j, fw in enumerate(fix_windows_9pt):
+                    if j==i:
+                        fw.draw()
                 
                 if gaze['valid']:
                     # 这里直接用 shared_data 算出来的坐标 (因为我们刚刚重置了参数，所以它约等于 raw data)
@@ -129,11 +147,14 @@ class CalibrationManager:
 
                     self.ctl_gaze.pos = (gx_scaled,gy_scaled)
                     self.ctl_gaze.draw()
+                #else:
+                    #print(f"Not good {debug}")
+                    #debug += 1
                 
                 # 2. 绘制目标（之前画出window）
-                visual.Circle(self.win_ctl, radius=auto_fix_radius * self.scale_x, 
-                              pos=(tx * self.scale_x, ty * self.scale_y), 
-                              lineColor='grey', lineWidth=1, fillColor=None, opacity=0.5).draw()
+                #visual.Circle(self.win_ctl, radius=auto_fix_radius * self.scale_x, 
+                #              pos=(tx * self.scale_x, ty * self.scale_y), 
+                #              lineColor='grey', lineWidth=1, fillColor=None, opacity=0.5).draw()
                 self.win_ctl.flip()
                 
 
@@ -148,8 +169,8 @@ class CalibrationManager:
             # --- Step B: 采集阶段 ---
             print(f"正在采集点 {i+1}/9...")
             samples = []
-            # 采集 10 个样本
-            for _ in range(10): 
+            # 采集 3 个样本
+            for _ in range(3): 
                 # 这里我们特意取 buffer 里最后 1 个点，自己手动存 list
                 # 这样比直接取 last_n=20 更稳，因为我们可以控制 core.wait
                 gaze = self.shared_data.get_latest()
@@ -159,13 +180,20 @@ class CalibrationManager:
                 core.wait(0.01) 
             if self.arduino is not None:
                 # 给予 100 毫秒的水滴奖励（你可以把这个时长做成类属性或函数参数方便调节）
-                self.arduino.reward(duration_ms=100) 
+                self.arduino.reward(duration_ms=1000) 
                 print(f" -> 触发液体奖励 (100ms)")
+            else:
+                print(" -> [警告] arduino 对象为 None，水泵触发被跳过！请检查主程序中的 CalibrationManager 实例化。")
 
             avg_raw = np.mean(samples, axis=0)
             collected_data.append((tx, ty, avg_raw[0], avg_raw[1], avg_raw[2], avg_raw[3]))
             print(f" -> Raw: (xl: {avg_raw[0]:.1f}, yl:{avg_raw[1]:.1f},xr:{avg_raw[2]:.1f},yr:{avg_raw[3]:.1f})")
-
+            
+            self.win_sub.flip()
+            self.win_ctl.flip()
+            
+            core.wait(0.8)
+            
         # Step C: 计算并应用
         (left_cal,right_cal) = self._calculate_and_apply(np.array(collected_data))
         return (left_cal,right_cal)
@@ -185,10 +213,26 @@ class CalibrationManager:
 
         print("开始快速校准 (3点)：请注视屏幕上的红点，按下空格键采集。")
 
+        auto_fix_radius = 200.0
+        
         # 定义专用的3点坐标：(0,0)中心, (-w, h)左上, (w, -h)右下
         w, h = self.win_sub.size[0]//3, self.win_sub.size[1]//3
         targets_3pt = [(0, 0), (-w, h), (w, -h)]
-
+        
+        fix_windows_3pt = []
+        for (vx, vy) in targets_3pt:
+            circle = visual.Circle(
+                self.win_ctl,
+                radius=auto_fix_radius * self.scale_x,
+                pos=(vx * self.scale_x, vy * self.scale_y),
+                lineColor='grey',
+                lineWidth=1,
+                fillColor=None,
+                opacity=0.3
+            )
+            fix_windows_3pt.append(circle)
+            
+            
         for i, (tx, ty) in enumerate(targets_3pt):
             self.stim_target.pos = (tx, ty)
             self.ctl_target.pos = (tx * self.scale_x, ty * self.scale_y)
@@ -205,6 +249,9 @@ class CalibrationManager:
                 self.win_sub.flip()
 
                 self.ctl_target.draw()
+                for j, fw in enumerate(fix_windows_3pt):
+                    if j == i:
+                        fw.draw()
 
                 if gaze['valid']:
                     gx_scaled = gaze['x'] * self.scale_x
@@ -233,19 +280,26 @@ class CalibrationManager:
             # 采集阶段
             print(f"正在采集点 {i+1}/3...")
             samples = []
-            for _ in range(10):
+            for _ in range(3):
                 gaze = self.shared_data.get_latest()
                 samples.append([gaze['xl'], gaze['yl'], gaze['xr'], gaze['yr']])
                 core.wait(0.01)
 
             if self.arduino is not None:
                 # 给予 100 毫秒的水滴奖励（你可以把这个时长做成类属性或函数参数方便调节）
-                self.arduino.reward(duration_ms=100) 
+                self.arduino.reward(duration_ms=1000) 
                 print(f" -> 触发液体奖励 (100ms)")
+            else:
+                print(" -> [警告] arduino 对象为 None，水泵触发被跳过！请检查主程序中的 CalibrationManager 实例化。")
                 
             avg_raw = np.mean(samples, axis=0)
             collected_data.append((tx, ty, avg_raw[0], avg_raw[1], avg_raw[2], avg_raw[3]))
             print(f" -> Raw: (xl:{avg_raw[0]:.1f}, yl:{avg_raw[1]:.1f}, xr:{avg_raw[2]:.1f}, yr:{avg_raw[3]:.1f})")
+            
+            self.win_sub.flip()
+            self.win_ctl.flip()
+            
+            core.wait(0.8)
 
         # 调用专属的3点计算函数
         if len(collected_data) == 3:

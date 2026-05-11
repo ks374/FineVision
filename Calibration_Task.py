@@ -8,6 +8,7 @@ from Json_manager import update_json,read_json
 from datetime import datetime
 import json
 import os
+from FineVision_Util import ArduinoController
 
 # %%
 if __name__ == '__main__':
@@ -51,13 +52,22 @@ if __name__ == '__main__':
         units='pix',
         title="Experiment Control View"
     )
+    
+    my_arduino = None
+    try:
+        print("正在连接 Arduino 水泵...")
+        my_arduino = ArduinoController() # 请根据你的实际类定义修改参数
+        print("✅ Arduino 连接成功！")
+    except Exception as e:
+        print(f"❌ Arduino 连接失败: {e}。本次校准将没有液体奖励。")
 
     # 4. 传入 Manager
     calib_manager = CalibrationManager(
         subject_win=win_subject, 
         control_win=win_control, 
         shared_data=shared_data,
-        setting_file_path = task_json_path
+        setting_file_path = task_json_path,
+        arduino_controller = my_arduino
     )
 
     default_json_path = f"default_setting.json"

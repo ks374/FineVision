@@ -3,8 +3,8 @@
         "Subject ID": "Monkey_H18",
         "Wait Time (s)": 10.0,
         "Stim Duration (s)": 1.5,
-        "Fix Window Radius (pix)": 250,
-        "Reward Length (s)": 0.25,
+        "Fix Window Radius (pix)": 50,
+        "Reward Length (s)": 1,
         "ITI (s)": 5.0,
         "Timeout (s)": 2.5
     }
