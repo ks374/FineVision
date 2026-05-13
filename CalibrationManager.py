@@ -7,15 +7,17 @@ from Shared_Memory_Util import SharedGazeData
 from datetime import datetime
 from collections import deque
 from FineVision_Util import ArduinoController
+from GazeTrackerRenderer import GazeTrackerRenderer
 
 
 class CalibrationManager:
-    def __init__(self, subject_win, control_win, shared_data,setting_file_path, arduino_controller=None):
+    def __init__(self, subject_win, control_win, shared_data,setting_file_path, arduino_controller=None, is_simulating = 0):
         self.win_sub = subject_win
         self.win_ctl = control_win
         self.shared_data = shared_data
         self.setting_file_path = setting_file_path
         self.arduino = arduino_controller
+        self.is_simulating = is_simulating
 
 
         #This file lives in the drive forever. It will save the default calibration parameteres
@@ -26,16 +28,18 @@ class CalibrationManager:
         self.scale_x = control_win.size[0] / subject_win.size[0]
         self.scale_y = control_win.size[1] / subject_win.size[1]
 
+        self.gaze_renderer = GazeTrackerRenderer(self.win_ctl,self.shared_data,self.scale_x,self.scale_y,self.is_simulating)
+
         # 定义 9 点坐标 (假设屏幕分辨率 1920x1080，使用像素单位)
         # 覆盖中心、四角及各边中点
-        w, h = subject_win.size[0]//3, subject_win.size[1]//3
+        w, h = subject_win.size[0]//6, subject_win.size[1]//6
         self.targets = [
             (0, 0), (-w, h), (0, h), (w, h),
             (-w, 0), (w, 0), (-w, -h), (0, -h), (w, -h)
         ]
-        self.stim_target = visual.Circle(self.win_sub, radius=15, fillColor='white', lineColor='red')
-        self.ctl_target = visual.Circle(self.win_ctl, radius=15, fillColor='white', lineColor='red')
-        self.ctl_gaze = visual.Circle(self.win_ctl, radius=5, fillColor='yellow', opacity=0.8)
+        self.stim_target = visual.Circle(self.win_sub, radius=30, fillColor='red', lineColor='green')
+        self.ctl_target = visual.Circle(self.win_ctl, radius=30*self.scale_x, fillColor='red', lineColor='green')
+        #self.ctl_gaze = visual.Circle(self.win_ctl, radius=5, fillColor='yellow', opacity=0.8)
         self.tail_line = visual.ShapeStim(
             self.win_ctl,
             vertices=[(0,0),(0,0)],
@@ -55,8 +59,10 @@ class CalibrationManager:
 
         print("开始校准：请注视屏幕上的红点，按下空格键采集当前点。")
 
-        auto_fix_radius = 200.0
-        auto_fix_time = 0.8
+        auto_fix_radius = 200
+        auto_fix_time = 0.15
+        max_wait_time = 5
+        iti_time = 3
         
         fix_windows_9pt = []
         for (vx, vy) in self.targets:
@@ -74,134 +80,131 @@ class CalibrationManager:
         for i, (tx, ty) in enumerate(self.targets):
             self.stim_target.pos = (tx, ty)
             self.ctl_target.pos = (tx * self.scale_x, ty * self.scale_y)
-            
-            # --- 关键修改：进入实时渲染循环，而不是死等按键 ---
-            # 这一步让你能看到猴子到底在看哪
-            event.clearEvents() # 清除旧按键
 
-            #Define the tail for the gaze position
-            gaze_trail = deque(maxlen=60)
-            smooth_buffer = deque(maxlen=5) # 新增：用于存储最近5个点来计算滑动平均
+            point_acquired = False
 
-            fix_clock = core.Clock()
-            is_fixating = False
-            
-            #last_print_time = core.getTime()
-            #print_interval = 0.5  # 打印间隔，单位：秒（这里设置为0.5秒输出一次）
-            #debug = 0
-            while True:
-                # 1. 获取最新视线 (此时拿到的是经过 gain=1, offset=0 计算后的“伪原始”数据)
-                # 注意：这里我们只画左眼或者双眼中心作为参考
-                gaze = self.shared_data.get_latest_cal()
-
-                self.stim_target.draw()
-                self.win_sub.flip()
-
-                self.ctl_target.draw()
+            while not point_acquired:
                 
-                for j, fw in enumerate(fix_windows_9pt):
-                    if j==i:
-                        fw.draw()
+                event.clearEvents() # 清除旧按键
                 
-                if gaze['valid']:
-                    # 这里直接用 shared_data 算出来的坐标 (因为我们刚刚重置了参数，所以它约等于 raw data)
-                    # 如果眼动仪原始坐标和屏幕坐标差异巨大（比如原点在左上角 vs 中心），
-                    # 你可能需要在这里手动减去屏幕分辨率的一半来让它出现在视野里
-                    # 假设 raw data 也是以屏幕中心为 0 (或者在 Server 端做过基础去中心化)
-                    gx_scaled = gaze['x'] * self.scale_x
-                    gy_scaled = gaze['y'] * self.scale_y
+                core.wait(iti_time)
+
+                trial_clock = core.Clock()
+                fix_clock = core.Clock()
+                is_fixating = False
+                status = "running"
+            
+                while True:
+                    self.stim_target.draw()
+                    self.win_sub.flip()
+
+                    self.ctl_target.draw()
                     
-                    # 将当前坐标加入平滑缓冲区
-                    smooth_buffer.append((gx_scaled, gy_scaled))
+                    if not is_fixating and trial_clock.getTime() > max_wait_time:
+                        status = "nofix"
+                        break
 
-                    # 计算最近 N (最多5个) 点的平均值
-                    # 使用纯 Python 计算，避免每帧调用 numpy 带来额外开销，保证 PsychoPy 渲染帧率
-                    gx_scaled = sum(p[0] for p in smooth_buffer) / len(smooth_buffer)
-                    gy_scaled = sum(p[1] for p in smooth_buffer) / len(smooth_buffer)
-
-                    current_gaze_x_sub = gx_scaled/self.scale_x
-                    current_gaze_y_sub = gy_scaled/self.scale_y
-                    dist = math.hypot(current_gaze_x_sub - tx, current_gaze_y_sub - ty)
-
-                    if dist <= auto_fix_radius:
-                        if not is_fixating:
-                            is_fixating = True
-                            fix_clock.reset()
-                        elif fix_clock.getTime() >= auto_fix_time:
-                            print(f" -> 自动判定成功 (持续注视 {auto_fix_time}s)")
-                            break
-                    else:
-                        if is_fixating:
-                            is_fixating = False
-
-                    #current_time = core.getTime()
-                    #if current_time - last_print_time >= print_interval:
-                    #    print(f"[点 {i+1}/9] 实时视线 -> 原始 X:{gaze['x']:.1f}, Y:{gaze['y']:.1f} | 缩放后 X:{gx_scaled:.1f}, Y:{gy_scaled:.1f}")
-                    #    last_print_time = current_time
-
-                    gaze_trail.append((gx_scaled,gy_scaled))
-
-                    if len(gaze_trail) >= 2:
-                        self.tail_line.vertices = list(gaze_trail)
-                        self.tail_line.draw()
-
-                    self.ctl_gaze.pos = (gx_scaled,gy_scaled)
-                    self.ctl_gaze.draw()
-                #else:
-                    #print(f"Not good {debug}")
-                    #debug += 1
+                    gaze = self.gaze_renderer.update_and_draw()
                 
-                # 2. 绘制目标（之前画出window）
-                #visual.Circle(self.win_ctl, radius=auto_fix_radius * self.scale_x, 
-                #              pos=(tx * self.scale_x, ty * self.scale_y), 
-                #              lineColor='grey', lineWidth=1, fillColor=None, opacity=0.5).draw()
-                self.win_ctl.flip()
+                    for j, fw in enumerate(fix_windows_9pt):
+                        if j==i:
+                            fw.draw()
+
+                    self.win_ctl.flip()
+                
+                    if gaze['valid']:
+                        dist = math.hypot(gaze['x'] - tx, gaze['y'] - ty)
+
+                        if dist <= auto_fix_radius:
+                            if not is_fixating:
+                                is_fixating = True
+                                fix_clock.reset()
+                            elif fix_clock.getTime() >= auto_fix_time:
+                                print(f" -> 自动判定成功 (持续注视 {auto_fix_time}s)")
+                                status = "success"
+                                break
+                        else:
+                            if is_fixating:
+                                status = "break"
+                                is_fixating = False
+                                break
+
+                    
                 
 
                 # 3. 检测按键退出循环
-                keys = event.getKeys()
-                if 'space' in keys:
-                    break # 跳出 while，进入采集阶段
-                elif 'escape' in keys:
-                    print("校准中止")
-                    return (default_left_cal, default_right_cal)
-
-            # --- Step B: 采集阶段 ---
-            print(f"正在采集点 {i+1}/9...")
-            samples = []
-            # 采集 3 个样本
-            for _ in range(3): 
-                # 这里我们特意取 buffer 里最后 1 个点，自己手动存 list
-                # 这样比直接取 last_n=20 更稳，因为我们可以控制 core.wait
-                gaze = self.shared_data.get_latest()
+                    keys = event.getKeys()
+                    if 'space' in keys:
+                        status = "success"
+                        break # 跳出 while，进入采集阶段
+                    elif 'escape' in keys:
+                        print("校准中止")
+                        return (default_left_cal, default_right_cal)
                 
-                # 注意：snapshot 返回的是 numpy array，取 [0] 拿到数值
-                samples.append([gaze['xl'], gaze['yl'], gaze['xr'], gaze['yr']])
-                core.wait(0.01) 
-            if self.arduino is not None:
-                # 给予 100 毫秒的水滴奖励（你可以把这个时长做成类属性或函数参数方便调节）
-                self.arduino.reward(duration_ms=1000) 
-                print(f" -> 触发液体奖励 (100ms)")
-            else:
-                print(" -> [警告] arduino 对象为 None，水泵触发被跳过！请检查主程序中的 CalibrationManager 实例化。")
+                # 4. 任务状态判定
+                if status == "success":
+                    point_acquired = True
+                    print(f" -> 点 {i+1}/9 成功锁定。")
+                    print(f"正在采集点 {i+1}/9...")
+                    samples = []
+                    collection_failed = False
+                    # 采集 3 个样本
+                    for _ in range(3): 
+                        # 这里我们特意取 buffer 里最后 1 个点，自己手动存 list
+                        # 这样比直接取 last_n=20 更稳，因为我们可以控制 core.wait
+                        gaze = self.shared_data.get_latest()
+                        if gaze['xl'] == -999.0 or gaze['xl'] == -999:
+                            collection_failed = True
+                            break
+                        
+                        # 注意：snapshot 返回的是 numpy array，取 [0] 拿到数值
+                        samples.append([gaze['xl'], gaze['yl'], gaze['xr'], gaze['yr']])
+                        core.wait(0.01) 
+                    if collection_failed:
+                        print(" -> [采集失败] 采样瞬间丢失眼睛(眨眼或移开视线)。执行 ITI 后重试该点...")
+                        point_acquired = False
+                        self.win_sub.color = 'black'
+                        self.win_ctl.color = 'black'
+                        self.win_sub.flip()
+                        self.win_ctl.flip()
+                        #core.wait(iti_time)
+                        continue # 回到 while not point_acquired 的开头，重试该点
+                    if self.arduino is not None:
+                        # 给予 100 毫秒的水滴奖励（你可以把这个时长做成类属性或函数参数方便调节）
+                        self.arduino.reward(duration_ms=500) 
+                        print(f" -> 触发液体奖励 (500ms)")
+                    else:
+                        print(" -> [警告] arduino 对象为 None，水泵触发被跳过！请检查主程序中的 CalibrationManager 实例化。")
 
-            avg_raw = np.mean(samples, axis=0)
-            collected_data.append((tx, ty, avg_raw[0], avg_raw[1], avg_raw[2], avg_raw[3]))
-            print(f" -> Raw: (xl: {avg_raw[0]:.1f}, yl:{avg_raw[1]:.1f},xr:{avg_raw[2]:.1f},yr:{avg_raw[3]:.1f})")
-            
-            self.win_sub.flip()
-            self.win_ctl.flip()
-            
-            core.wait(0.8)
-            
+                    avg_raw = np.mean(samples, axis=0)
+                    collected_data.append((tx, ty, avg_raw[0], avg_raw[1], avg_raw[2], avg_raw[3]))
+                    print(f" -> Raw: (xl: {avg_raw[0]:.1f}, yl:{avg_raw[1]:.1f},xr:{avg_raw[2]:.1f},yr:{avg_raw[3]:.1f})")
+                    
+                    self.win_sub.flip()
+                    self.win_ctl.flip()
+                    
+                    core.wait(0.8)
+                elif status in ["nofix", "break"]:
+                    reason = "未看屏幕 (NoFix)" if status == "nofix" else "注视中断 (Break)"
+                    print(f" -> {reason}，执行 ITI ({iti_time}s) 后重试该点...")
+                    
+                    # 黑屏惩罚 ITI
+                    self.win_sub.color = 'black'
+                    self.win_ctl.color = 'black'
+                    self.win_sub.flip()
+                    self.win_ctl.flip()
+                    self.win_sub.flip()
+                    self.win_ctl.flip()
+                    #core.wait(iti_time)
+                    # 惩罚结束后，while 循环继续，重试当前的第 i 个点
+
         # Step C: 计算并应用
         (left_cal,right_cal) = self._calculate_and_apply(np.array(collected_data))
         return (left_cal,right_cal)
     
     def run_quick_calib(self, default_left_cal, default_right_cal, num_points=3):
         """
-        确定的3点快速校准，适用于猴子不熟悉任务时快速确定 calibration 参数。
-        选取中心、左上、右下三个点，以确保 X 和 Y 轴都有足够的坐标变化来计算 Gain。
+        确定的3点快速校准，包含失败重试、ITI机制、数据有效性校验，以及【实时手动调参】功能。
         """
         collected_data = []  # (tx, ty, raw_xl, raw_yl, raw_xr, raw_yr)
 
@@ -211,13 +214,21 @@ class CalibrationManager:
         self.shared_data.set_calibration_right(default_right_cal['ox'], default_right_cal['oy'],
                                             default_right_cal['gx'], default_right_cal['gy'])
 
-        print("开始快速校准 (3点)：请注视屏幕上的红点，按下空格键采集。")
+        print("\n=== 开始快速校准 (3点) ===")
+        print("请注视屏幕红点。如果猴子只是一瞥，您可以使用以下快捷键实时挪动视线光标：")
+        print(" [方向键 ↑ ↓ ← →] : 微调 X/Y 轴的 Offset (平移光标)")
+        print(" [W / S]          : 微调 Y 轴的 Gain (纵向拉伸)")
+        print(" [A / D]          : 微调 X 轴的 Gain (横向拉伸)")
+        print(" [空格键]         : 强制判定成功并进入采集\n")
 
-        auto_fix_radius = 200.0
+        auto_fix_radius = 200
+        auto_fix_time = 0.2
+        max_wait_time = 5.0  # 给长一点的时间方便手动调参
+        iti_time = 3.0
         
         # 定义专用的3点坐标：(0,0)中心, (-w, h)左上, (w, -h)右下
         w, h = self.win_sub.size[0]//3, self.win_sub.size[1]//3
-        targets_3pt = [(0, 0), (-w, h), (w, -h)]
+        targets_3pt = [(0, 0), (-w, 0), (0, h)]
         
         fix_windows_3pt = []
         for (vx, vy) in targets_3pt:
@@ -237,69 +248,145 @@ class CalibrationManager:
             self.stim_target.pos = (tx, ty)
             self.ctl_target.pos = (tx * self.scale_x, ty * self.scale_y)
 
-            event.clearEvents()
-            gaze_trail = deque(maxlen=60)
-            smooth_buffer = deque(maxlen=5) # 新增：用于存储最近5个点来计算滑动平均
+            point_acquired = False
 
-            # 实时渲染循环，直到按下空格
-            while True:
-                gaze = self.shared_data.get_latest_cal()
-
-                self.stim_target.draw()
-                self.win_sub.flip()
-
-                self.ctl_target.draw()
-                for j, fw in enumerate(fix_windows_3pt):
-                    if j == i:
-                        fw.draw()
-
-                if gaze['valid']:
-                    gx_scaled = gaze['x'] * self.scale_x
-                    gy_scaled = gaze['y'] * self.scale_y
-
-                    # 将当前坐标加入平滑缓冲区
-                    smooth_buffer.append((gx_scaled, gy_scaled))
-
-                    gaze_trail.append((gx_scaled, gy_scaled))
-                    if len(gaze_trail) >= 2:
-                        self.tail_line.vertices = list(gaze_trail)
-                        self.tail_line.draw()
-
-                    self.ctl_gaze.pos = (gx_scaled, gy_scaled)
-                    self.ctl_gaze.draw()
-
-                self.win_ctl.flip()
-
-                keys = event.getKeys()
-                if 'space' in keys:
-                    break
-                elif 'escape' in keys:
-                    print("快速校准中止")
-                    return (default_left_cal, default_right_cal)
-
-            # 采集阶段
-            print(f"正在采集点 {i+1}/3...")
-            samples = []
-            for _ in range(3):
-                gaze = self.shared_data.get_latest()
-                samples.append([gaze['xl'], gaze['yl'], gaze['xr'], gaze['yr']])
-                core.wait(0.01)
-
-            if self.arduino is not None:
-                # 给予 100 毫秒的水滴奖励（你可以把这个时长做成类属性或函数参数方便调节）
-                self.arduino.reward(duration_ms=1000) 
-                print(f" -> 触发液体奖励 (100ms)")
-            else:
-                print(" -> [警告] arduino 对象为 None，水泵触发被跳过！请检查主程序中的 CalibrationManager 实例化。")
+            while not point_acquired:
+                event.clearEvents()
                 
-            avg_raw = np.mean(samples, axis=0)
-            collected_data.append((tx, ty, avg_raw[0], avg_raw[1], avg_raw[2], avg_raw[3]))
-            print(f" -> Raw: (xl:{avg_raw[0]:.1f}, yl:{avg_raw[1]:.1f}, xr:{avg_raw[2]:.1f}, yr:{avg_raw[3]:.1f})")
-            
-            self.win_sub.flip()
-            self.win_ctl.flip()
-            
-            core.wait(0.8)
+                core.wait(iti_time)
+
+                trial_clock = core.Clock()
+                fix_clock = core.Clock()
+                is_fixating = False
+                status = "running"
+
+                while True:
+                    self.stim_target.draw()
+                    self.win_sub.flip()
+                    self.ctl_target.draw()
+                    
+                    if not is_fixating and trial_clock.getTime() > max_wait_time:
+                        status = "nofix"
+                        break
+
+                    gaze = self.gaze_renderer.update_and_draw()
+                    
+                    
+                    for j, fw in enumerate(fix_windows_3pt):
+                        if j == i: fw.draw()
+
+                    self.win_ctl.flip()
+
+                    if gaze['valid']:
+                        dist = math.hypot(gaze['x'] - tx, gaze['y'] - ty)
+
+                        if dist <= auto_fix_radius:
+                            if not is_fixating:
+                                is_fixating = True
+                                fix_clock.reset()
+                            elif fix_clock.getTime() >= auto_fix_time:
+                                status = "success"
+                                break
+                        else:
+                            if is_fixating:
+                                status = "break"
+                                is_fixating = False
+                                break
+
+                    
+
+                    keys = event.getKeys()
+                    if keys:
+                        trial_clock.reset()
+                        l_cal = self.shared_data.get_calibration_left()
+                        r_cal = self.shared_data.get_calibration_right()
+
+                        changed = False
+                        offset_step = 5.0
+                        gain_step = 2.0
+
+                        # 键盘事件判断
+                        if 'up' in keys:
+                            l_cal['oy'] -= offset_step; r_cal['oy'] -= offset_step; changed = True
+                        elif 'down' in keys:
+                            l_cal['oy'] += offset_step; r_cal['oy'] += offset_step; changed = True
+                        elif 'left' in keys:
+                            l_cal['ox'] -= offset_step; r_cal['ox'] -= offset_step; changed = True
+                        elif 'right' in keys:
+                            l_cal['ox'] += offset_step; r_cal['ox'] += offset_step; changed = True
+                        elif 'w' in keys:
+                            l_cal['gy'] += gain_step; r_cal['gy'] += gain_step; changed = True
+                        elif 's' in keys:
+                            l_cal['gy'] -= gain_step; r_cal['gy'] -= gain_step; changed = True
+                        elif 'd' in keys:
+                            l_cal['gx'] += gain_step; r_cal['gx'] += gain_step; changed = True
+                        elif 'a' in keys:
+                            l_cal['gx'] -= gain_step; r_cal['gx'] -= gain_step; changed = True
+                        # 如果修改了参数，立刻推送到后台 Server
+                        if changed:
+                            self.shared_data.set_calibration_left(l_cal['ox'], l_cal['oy'], l_cal['gx'], l_cal['gy'])
+                            self.shared_data.set_calibration_right(r_cal['ox'], r_cal['oy'], r_cal['gx'], r_cal['gy'])
+                            print(f"[调参] Offset(X:{l_cal['ox']:.1f}, Y:{l_cal['oy']:.1f}) | Gain(X:{l_cal['gx']:.2f}, Y:{l_cal['gy']:.2f})")
+
+                        if 'space' in keys:
+                            status = "success"
+                            break
+                        elif 'escape' in keys:
+                            print("快速校准中止")
+                            return (default_left_cal, default_right_cal)
+                if status == "success":
+                    print(f" -> 点 {i+1}/3 成功锁定，准备采集数据...")
+                elif status in ["nofix", "break"]:
+                    reason = "未看屏幕 (NoFix)" if status == "nofix" else "注视中断 (Break)"
+                    print(f" -> {reason}，执行 ITI ({iti_time}s) 后重试该点...")
+                    self.win_sub.color = 'black'
+                    self.win_ctl.color = 'black'
+                    self.win_sub.flip()
+                    self.win_ctl.flip()
+                    self.win_sub.flip()
+                    self.win_ctl.flip()
+                    #core.wait(iti_time)
+                    continue
+
+                # 采集阶段
+                print(f"正在采集点 {i+1}/3...")
+                samples = []
+                collection_failed = False
+                for _ in range(3):
+                    gaze = self.shared_data.get_latest()
+                    if gaze['xl'] == -999.0 or gaze['xl'] == -999:
+                        collection_failed = True
+                        break 
+                    samples.append([gaze['xl'], gaze['yl'], gaze['xr'], gaze['yr']])
+                    core.wait(0.01)
+                if collection_failed:
+                    print(" -> [采集失败] 采样瞬间丢失眼睛(眨眼或移开视线)。执行 ITI 后重试该点...")
+                    self.win_sub.color = 'black'
+                    self.win_ctl.color = 'black'
+                    self.win_sub.flip()
+                    self.win_ctl.flip()
+                    self.win_sub.flip()
+                    self.win_ctl.flip()
+                    #core.wait(iti_time)
+                    continue
+
+                point_acquired = True
+
+                if self.arduino is not None:
+                    # 给予 100 毫秒的水滴奖励（你可以把这个时长做成类属性或函数参数方便调节）
+                    self.arduino.reward(duration_ms=500) 
+                    print(f" -> 触发液体奖励 (500ms)")
+                else:
+                    print(" -> [警告] arduino 对象为 None，水泵触发被跳过！请检查主程序中的 CalibrationManager 实例化。")
+                    
+                avg_raw = np.mean(samples, axis=0)
+                collected_data.append((tx, ty, avg_raw[0], avg_raw[1], avg_raw[2], avg_raw[3]))
+                print(f" -> Raw: (xl:{avg_raw[0]:.1f}, yl:{avg_raw[1]:.1f}, xr:{avg_raw[2]:.1f}, yr:{avg_raw[3]:.1f})")
+                
+                self.win_sub.flip()
+                self.win_ctl.flip()
+                
+                core.wait(0.8)  
 
         # 调用专属的3点计算函数
         if len(collected_data) == 3:

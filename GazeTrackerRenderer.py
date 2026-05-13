@@ -20,6 +20,7 @@ class GazeTrackerRenderer:
             lineWidth=2.0, lineColor='yellow', opacity=0.6
         )
         self.trail = deque(maxlen=60)
+        self.smooth_buffer = deque(maxlen=5) # 新增：用于存储最近5个点来计算滑动平均
 
     def reset_trail(self):
         """每个 Trial 开始时调用，清空尾巴"""
@@ -38,6 +39,11 @@ class GazeTrackerRenderer:
         else:
             gaze = self.shared_data.get_latest_cal()
             if gaze['valid']:
+                # 将当前坐标加入平滑缓冲区
+                self.smooth_buffer.append((gaze['x'], gaze['y']))
+                gaze['x'] = sum(p[0] for p in self.smooth_buffer) / len(self.smooth_buffer)
+                gaze['y'] = sum(p[1] for p in self.smooth_buffer) / len(self.smooth_buffer)
+
                 # 计算缩放后的屏幕坐标
                 gx = gaze['x'] * self.scale_x
                 gy = gaze['y'] * self.scale_y

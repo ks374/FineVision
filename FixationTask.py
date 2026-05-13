@@ -36,7 +36,7 @@ class FixationTask:
 
         # --- 视觉刺激初始化 ---
         # 猴子屏幕：中心注视点
-        self.stim_fix_point = visual.Circle(win_sub, radius=20, fillColor='white', lineColor='white', pos=(0,0))
+        self.stim_fix_point = visual.Circle(win_sub, radius=30, fillColor='red', lineColor='green', pos=(0,0))
         
         # 控制台屏幕：包含注视点、实时眼动光标、隐形的“注视窗口”边界
         self.ctl_fix_point = visual.Circle(win_ctl, radius=20 * self.scale_x, fillColor='white', pos=(0,0))
@@ -236,7 +236,7 @@ class FixationTask:
 # 3. 主程序入口 (Main)
 # ==========================================
 if __name__ == '__main__':
-    # 1. 启动眼动仪 Server 和共享内存
+    # 1. 启动眼动仪 Server 和共享内
     is_simulating = 0
     shared_data = SharedGazeData()
     if is_simulating == 0:
@@ -280,7 +280,7 @@ if __name__ == '__main__':
         'Wait Time (s)': 10.0,        
         'Stim Duration (s)': 1.5,        
         'Fix Window Radius (pix)': 500, 
-        'Reward Length (s)': 1,       
+        'Reward Length (s)': 0.2,       
         'ITI (s)': 5.0,                  
         'Timeout (s)': 2.5               
     }

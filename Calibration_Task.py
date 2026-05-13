@@ -13,10 +13,15 @@ from FineVision_Util import ArduinoController
 # %%
 if __name__ == '__main__':
 
+    is_simulating = 0
+    
     shared_data = SharedGazeData()
-    p_server = EyetrackerServer(shared_data, "EyeControl_SDK.dll", 100)
-    p_server.start()
-    print("EyeTracker Server Started.")
+    if is_simulating == 0:
+        p_server = EyetrackerServer(shared_data, "EyeControl_SDK.dll", 100)
+        p_server.start()
+        print("EyeTracker Server Started.")
+    else:
+        print("Running simulation mode.")
     # 1. 自动检测屏幕数量
 #    你的电脑可能是 Screen 0 (主屏), 猴子显示器是 Screen 1
 #   可以在 Windows "显示设置" 里确认编号
@@ -67,7 +72,8 @@ if __name__ == '__main__':
         control_win=win_control, 
         shared_data=shared_data,
         setting_file_path = task_json_path,
-        arduino_controller = my_arduino
+        arduino_controller = my_arduino,
+        is_simulating=is_simulating
     )
 
     default_json_path = f"default_setting.json"
@@ -103,7 +109,8 @@ if __name__ == '__main__':
     
 
     shared_data.stop()
-    p_server.join()
+    if is_simulating != 1:
+        p_server.join()
     win_subject.close()
     win_control.close()
     core.quit()

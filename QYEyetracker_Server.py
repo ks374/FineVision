@@ -36,10 +36,10 @@ class EyetrackerServer(Process):
         tracker.start_tracking()
         print("[Server] 追踪引擎已启动，正在写入数据...")
         
-        last_timestamp = -1.0
-        
         poll_interval = 1.0/250.0
         last_poll_time = time.perf_counter()
+
+        is_eye_detected = False
 
         try:
             while self.shared_data.is_running:
@@ -53,10 +53,14 @@ class EyetrackerServer(Process):
                         # 将 SDK 的格式映射到你的 SharedGazeData 字典格式
                         # 注意：根据 SDK，stEyeCtl_EyeDataEx 包含双眼和原始点数据 [cite: 47-60]
                         #current_frame_time = gaze_raw.get('time_frame',0.0)
-                        
+                        current_xl = gaze_raw.get('xl', -999.0)
+                        if current_xl != -999.0 and current_xl != -999:
+                            is_eye_detected = True
+                        else:
+                            is_eye_detected = False
                         
                         formatted_data = {
-                            'xl': gaze_raw.get('xl', 0.0),
+                            'xl': current_xl,
                             'yl': gaze_raw.get('yl', 0.0),
                             'xr': gaze_raw.get('xr', 0.0),
                             'yr': gaze_raw.get('yr', 0.0),
@@ -71,14 +75,25 @@ class EyetrackerServer(Process):
                     time.sleep(0)
                 
                 # --- 新增：4. 抓取并显示图像 ---
-                #img = tracker.get_image()
-                #if img is not None:
-                #    # 显示图像
-                #    cv2.imshow("EyeTracker Live Feed", img)
+                img = tracker.get_image()
+                if img is not None:
+                    if len(img.shape) == 2 or (len(img.shape) == 3 and img.shape[2] == 1):
+                        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+                        
+                    dot_color = (0, 255, 0) if is_eye_detected else (0, 0, 255)
+                    h, w = img.shape[:2]
+                    center_coordinates = (w - 70, 70)
+                    radius = 30      # 圆点大小
+                    thickness = -1    # -1 代表填充实心圆
+
+                    cv2.circle(img, center_coordinates, radius, dot_color, thickness)
+
+                    # 显示图像
+                    cv2.imshow("EyeTracker Live Feed", img)
                 
                 # 必须加入 cv2.waitKey，否则 OpenCV 窗口会未响应死机。
                 # 传入 1 意味着只阻塞 1 毫秒处理窗口事件。
-                #cv2.waitKey(1)
+                cv2.waitKey(1)
                 
                 # 5. 控制采样循环频率
                 # 稍微 sleep 一下，防止把 CPU 跑满，给系统留点呼吸空间
@@ -87,7 +102,7 @@ class EyetrackerServer(Process):
 
         finally:
             # 6. 安全关闭
-            #cv2.destroyAllWindows()
+            cv2.destroyAllWindows()
             tracker.stop_tracking()
             tracker.close()
             print("[Server] 后台服务已安全关闭。")

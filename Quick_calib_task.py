@@ -13,11 +13,15 @@ from FineVision_Util import ArduinoController
 # %%
 if __name__ == '__main__':
 
+    is_simulating = 0
     # 初始化共享内存与眼动仪服务器
     shared_data = SharedGazeData()
-    p_server = EyetrackerServer(shared_data, "EyeControl_SDK.dll", 100)
-    p_server.start()
-    print("EyeTracker Server Started.")
+    if is_simulating == 0:
+        p_server = EyetrackerServer(shared_data, "EyeControl_SDK.dll", 100)
+        p_server.start()
+        print("EyeTracker Server Started.")
+    else:
+        print("Running simulation mode.")
 
     # 1. 设置屏幕显示器 ID
     MONITOR_ID_SUBJECT = 1 
@@ -65,7 +69,9 @@ if __name__ == '__main__':
         subject_win=win_subject, 
         control_win=win_control, 
         shared_data=shared_data,
-        setting_file_path=task_json_path
+        setting_file_path=task_json_path,
+        arduino_controller=my_arduino,
+        is_simulating = is_simulating
     )
 
     # 5. 加载默认校准参数 (Fallback)
@@ -104,7 +110,8 @@ if __name__ == '__main__':
 
     # 8. 安全关闭所有进程与窗口
     shared_data.stop()
-    p_server.join()
+    if is_simulating != 1:
+        p_server.join()
     win_subject.close()
     win_control.close()
     core.quit()
