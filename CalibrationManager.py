@@ -32,13 +32,13 @@ class CalibrationManager:
 
         # 定义 9 点坐标 (假设屏幕分辨率 1920x1080，使用像素单位)
         # 覆盖中心、四角及各边中点
-        w, h = subject_win.size[0]//6, subject_win.size[1]//6
+        w, h = subject_win.size[0]//10, subject_win.size[1]//10
         self.targets = [
             (0, 0), (-w, h), (0, h), (w, h),
             (-w, 0), (w, 0), (-w, -h), (0, -h), (w, -h)
         ]
-        self.stim_target = visual.Circle(self.win_sub, radius=30, fillColor='red', lineColor='green')
-        self.ctl_target = visual.Circle(self.win_ctl, radius=30*self.scale_x, fillColor='red', lineColor='green')
+        self.stim_target = visual.Circle(self.win_sub, radius=20, fillColor='green', lineColor='green')
+        self.ctl_target = visual.Circle(self.win_ctl, radius=20*self.scale_x, fillColor='green', lineColor='green')
         #self.ctl_gaze = visual.Circle(self.win_ctl, radius=5, fillColor='yellow', opacity=0.8)
         self.tail_line = visual.ShapeStim(
             self.win_ctl,
@@ -84,7 +84,6 @@ class CalibrationManager:
             point_acquired = False
 
             while not point_acquired:
-                
                 event.clearEvents() # 清除旧按键
                 
                 core.wait(iti_time)
@@ -93,6 +92,8 @@ class CalibrationManager:
                 fix_clock = core.Clock()
                 is_fixating = False
                 status = "running"
+                
+                fix_windows_9pt[i].lineColor = 'red'
             
                 while True:
                     self.stim_target.draw()
@@ -119,6 +120,7 @@ class CalibrationManager:
                             if not is_fixating:
                                 is_fixating = True
                                 fix_clock.reset()
+                                fix_windows_9pt[i].lineColor = 'green'
                             elif fix_clock.getTime() >= auto_fix_time:
                                 print(f" -> 自动判定成功 (持续注视 {auto_fix_time}s)")
                                 status = "success"
@@ -221,13 +223,13 @@ class CalibrationManager:
         print(" [A / D]          : 微调 X 轴的 Gain (横向拉伸)")
         print(" [空格键]         : 强制判定成功并进入采集\n")
 
-        auto_fix_radius = 200
+        auto_fix_radius = 300
         auto_fix_time = 0.2
         max_wait_time = 5.0  # 给长一点的时间方便手动调参
         iti_time = 3.0
         
         # 定义专用的3点坐标：(0,0)中心, (-w, h)左上, (w, -h)右下
-        w, h = self.win_sub.size[0]//3, self.win_sub.size[1]//3
+        w, h = self.win_sub.size[0]//6, self.win_sub.size[1]//6
         targets_3pt = [(0, 0), (-w, 0), (0, h)]
         
         fix_windows_3pt = []
@@ -259,6 +261,8 @@ class CalibrationManager:
                 fix_clock = core.Clock()
                 is_fixating = False
                 status = "running"
+                
+                fix_windows_3pt[i].lineColor = 'red'
 
                 while True:
                     self.stim_target.draw()
@@ -284,6 +288,7 @@ class CalibrationManager:
                             if not is_fixating:
                                 is_fixating = True
                                 fix_clock.reset()
+                                fix_windows_3pt[i].lineColor = 'green'
                             elif fix_clock.getTime() >= auto_fix_time:
                                 status = "success"
                                 break

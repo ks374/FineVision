@@ -36,12 +36,12 @@ class FixationTask:
 
         # --- 视觉刺激初始化 ---
         # 猴子屏幕：中心注视点
-        self.stim_fix_point = visual.Circle(win_sub, radius=30, fillColor='red', lineColor='green', pos=(0,0))
+        self.stim_fix_point = visual.Circle(win_sub, radius=20, fillColor='green', lineColor='green', pos=(0,0))
         
         # 控制台屏幕：包含注视点、实时眼动光标、隐形的“注视窗口”边界
-        self.ctl_fix_point = visual.Circle(win_ctl, radius=20 * self.scale_x, fillColor='white', pos=(0,0))
+        self.ctl_fix_point = visual.Circle(win_ctl, radius=20 * self.scale_x, fillColor='green', pos=(0,0))
         self.ctl_gaze_cursor = visual.Circle(win_ctl, radius=6, fillColor='yellow', opacity=0.8)
-        self.ctl_fix_window = visual.Circle(win_ctl, radius=100, fillColor=None, lineColor='green', lineWidth=2, pos=(0,0))
+        self.ctl_fix_window = visual.Circle(win_ctl, radius=100, fillColor=None, lineColor='red', lineWidth=2, pos=(0,0))
 
         #self.tail_line = visual.ShapeStim(
         #    self.win_ctl,
@@ -122,6 +122,8 @@ class FixationTask:
             # ====================================================
             print(f"\n--- Trial {trial_count} 开始 ---")
             self.arduino.trial_start()
+            
+            self.ctl_fix_window.linColor = 'red'
 
             t_trial_start = core.getTime()
             t_draw_finish = None
@@ -163,6 +165,8 @@ class FixationTask:
             # ====================================================
             if trial_status == "Acquired":
                 self.trial_clock.reset()
+                
+                self.ctl_fix_window.lineColor = 'green'
                 
                 while self.trial_clock.getTime() < self.stim_duration:
                     self.stim_fix_point.draw()
@@ -257,7 +261,7 @@ if __name__ == '__main__':
     win_subject = visual.Window(
         screen=MONITOR_ID_SUBJECT,
         size=[1920, 1080], 
-        fullscr=True,      # 实际电生理中如果需要高精时间，建议改为 True
+        fullscr=False,      # 实际电生理中如果需要高精时间，建议改为 True
         waitBlanking=True,
         color='black',
         units='pix',
