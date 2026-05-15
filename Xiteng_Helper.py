@@ -15,6 +15,18 @@ class PumpControllerApp:
         
         self._build_ui()
         self._refresh_ports()
+        
+        self.root.after(300, self.auto_connect_com3)
+    
+    def auto_connect_com3(self):
+        """启动时自动连接 COM3"""
+        try:
+            port = "COM3"
+            self.serial_port = serial.Serial(port, 115200, timeout=1)
+            self.btn_connect.config(text="断开")
+            self.lbl_status.config(text=f"状态: 已自动连接到 {port}", fg="green")
+        except:
+            self.lbl_status.config(text=f"状态: COM3 连接失败", fg="red")
 
     def _build_ui(self):
         # ================= 连接区域 =================
