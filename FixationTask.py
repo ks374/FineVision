@@ -115,7 +115,18 @@ class FixationTask:
                 self.win_sub.flip()
                 self.win_ctl.flip()
 
-            core.wait(self.iti_time)
+            self.trial_clock.reset()
+            while self.trial_clock.getTime() < self.iti_time:
+                self.gaze_renderer.update_and_draw()
+
+                self.win_sub.flip()
+                self.win_ctl.flip()
+
+                keys = event.getKeys()
+                if 'escape' in keys: return
+                if 'n' in keys:
+                    pause_requested = True
+                    break
 
             # ====================================================
             # 阶段 B：Wait for Fixation (等待猴子看过来)
@@ -136,6 +147,9 @@ class FixationTask:
             # 清理上一轮的杂乱按键，确保本轮按键检测干净
             event.clearEvents()
             
+            gaze_acquired = False
+            t_gaze_first_enter = None
+            
             while self.trial_clock.getTime() < self.wait_time:
                 self.stim_fix_point.draw()
                 self.ctl_fix_point.draw()
@@ -147,10 +161,19 @@ class FixationTask:
                 
                 gaze = self.gaze_renderer.update_and_draw()
                 
-                if gaze['valid'] and self.is_gaze_in_window(gaze['x'],gaze['y']):
-                    trial_status = "Acquired"
-                    t_gaze_enter = core.getTime()
-                    break
+                if gaze['valid'] and self.is_gaze_in_window(gaze['x'], gaze['y']):
+                    if not gaze_acquired:
+                        gaze_acquired = True
+                        t_gaze_first_enter = core.getTime()
+                    else:
+                        current_time = core.getTime()
+                        if (current_time - t_gaze_first_enter) * 1000 >= 150:
+                            trial_status = "Acquired"
+                            t_gaze_enter = t_gaze_first_enter
+                            break
+                else:
+                    gaze_acquired = False
+                    t_gaze_first_enter = None
                 
                 self.win_sub.flip()
                 self.win_ctl.flip()
@@ -177,7 +200,13 @@ class FixationTask:
                     
                     # 严苛判定：无效(眨眼)或移出窗口直接 Break
                     if not gaze['valid'] or not self.is_gaze_in_window(gaze['x'], gaze['y']):
-                        trial_status = "Break"
+                        t_break = core.getTime()
+                        fixation_duration_ms = (t_break - t_gaze_enter) * 1000
+                        
+                        if fixation_duration_ms <= 50:
+                            trial_status = "NoFix"
+                        else:
+                            trial_status = "Break"
                         break
 
                     self.win_sub.flip()
@@ -296,7 +325,8 @@ if __name__ == '__main__':
     # 5. 实例化并运行 Fixation 任务
     try:
         fix_task = FixationTask(win_subject, win_control, shared_data, task_manager,is_simulating)
-        fix_task.run_task()
+        while True:
+            fix_task.run_task()
     except Exception as e:
         print(f"任务运行中发生错误: {e}")
         traceback.print_exc()
