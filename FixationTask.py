@@ -36,10 +36,10 @@ class FixationTask:
 
         # --- 视觉刺激初始化 ---
         # 猴子屏幕：中心注视点
-        self.stim_fix_point = visual.Circle(win_sub, radius=20, fillColor='green', lineColor='green', pos=(0,0))
+        self.stim_fix_point = visual.Circle(win_sub, radius=15, fillColor='green', lineColor='green', pos=(0,0))
         
         # 控制台屏幕：包含注视点、实时眼动光标、隐形的“注视窗口”边界
-        self.ctl_fix_point = visual.Circle(win_ctl, radius=20 * self.scale_x, fillColor='green', pos=(0,0))
+        self.ctl_fix_point = visual.Circle(win_ctl, radius=15 * self.scale_x, fillColor='green', pos=(0,0))
         self.ctl_gaze_cursor = visual.Circle(win_ctl, radius=6, fillColor='yellow', opacity=0.8)
         self.ctl_fix_window = visual.Circle(win_ctl, radius=100, fillColor=None, lineColor='red', lineWidth=2, pos=(0,0))
 
@@ -270,7 +270,7 @@ class FixationTask:
 # ==========================================
 if __name__ == '__main__':
     # 1. 启动眼动仪 Server 和共享内
-    is_simulating = 0
+    is_simulating = 1
     shared_data = SharedGazeData()
     if is_simulating == 0:
         p_server = EyetrackerServer(shared_data, "EyeControl_SDK.dll", 100)

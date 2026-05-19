@@ -32,13 +32,13 @@ class CalibrationManager:
 
         # 定义 9 点坐标 (假设屏幕分辨率 1920x1080，使用像素单位)
         # 覆盖中心、四角及各边中点
-        w, h = subject_win.size[0]//10, subject_win.size[1]//10
+        w, h = subject_win.size[0]//6, subject_win.size[1]//6
         self.targets = [
             (0, 0), (-w, h), (0, h), (w, h),
             (-w, 0), (w, 0), (-w, -h), (0, -h), (w, -h)
         ]
-        self.stim_target = visual.Circle(self.win_sub, radius=20, fillColor='green', lineColor='green')
-        self.ctl_target = visual.Circle(self.win_ctl, radius=20*self.scale_x, fillColor='green', lineColor='green')
+        self.stim_target = visual.Circle(self.win_sub, radius=15, fillColor='green', lineColor='green')
+        self.ctl_target = visual.Circle(self.win_ctl, radius=15*self.scale_x, fillColor='green', lineColor='green')
         #self.ctl_gaze = visual.Circle(self.win_ctl, radius=5, fillColor='yellow', opacity=0.8)
         self.tail_line = visual.ShapeStim(
             self.win_ctl,
@@ -60,7 +60,7 @@ class CalibrationManager:
         print("开始校准：请注视屏幕上的红点，按下空格键采集当前点。")
 
         auto_fix_radius = 200
-        auto_fix_time = 0.15
+        auto_fix_time = 0.5
         max_wait_time = 5
         iti_time = 3
         
@@ -223,8 +223,8 @@ class CalibrationManager:
         print(" [A / D]          : 微调 X 轴的 Gain (横向拉伸)")
         print(" [空格键]         : 强制判定成功并进入采集\n")
 
-        auto_fix_radius = 300
-        auto_fix_time = 0.2
+        auto_fix_radius = 200
+        auto_fix_time = 0.5
         max_wait_time = 5.0  # 给长一点的时间方便手动调参
         iti_time = 3.0
         
