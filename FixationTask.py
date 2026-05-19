@@ -296,8 +296,7 @@ if __name__ == '__main__':
     # 5. 实例化并运行 Fixation 任务
     try:
         fix_task = FixationTask(win_subject, win_control, shared_data, task_manager,is_simulating)
-        while True:
-            fix_task.run_task()
+        fix_task.run_task()
     except Exception as e:
         print(f"任务运行中发生错误: {e}")
         traceback.print_exc()
