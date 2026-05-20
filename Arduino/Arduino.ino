@@ -25,7 +25,7 @@ void setup() {
   
   // 默认关闭水泵 (假设 HIGH 为关)
   digitalWrite(pumpEnablePin, HIGH);
-  analogWrite(pumpVoltagePin, 255); // 设置转速满
+  analogWrite(pumpVoltagePin, 128); // 设置转速满
   digitalWrite(pumpDirPin, LOW);    // 正向
   
   // 🌟 核心：把 Arduino Uno 的 8, 9, 10, 11 引脚设为输出模式
