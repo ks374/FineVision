@@ -25,7 +25,7 @@ void setup() {
   
   // 默认关闭水泵 (假设 HIGH 为关)
   digitalWrite(pumpEnablePin, HIGH);
-  analogWrite(pumpVoltagePin, 0); // 停转
+  analogWrite(pumpVoltagePin, 255); // 设置转速满
   digitalWrite(pumpDirPin, LOW);    // 正向
   
   // 🌟 核心：把 Arduino Uno 的 8, 9, 10, 11 引脚设为输出模式
@@ -68,7 +68,7 @@ void loop() {
       unsigned int duration = (highByte << 8) | lowByte;
       
       // 开启水泵 (非阻塞！)
-      analogWrite(pumpVoltagePin, speed); // 1. 设置转速 (0-5V)
+      //analogWrite(pumpVoltagePin, speed); // 1. 设置转速 (0-5V)
       digitalWrite(pumpDirPin, LOW);      // 2. 顺时针 (正向)
       digitalWrite(pumpEnablePin, LOW);   // 3. 开启水泵
       pumpEndTime = millis() + duration;
@@ -83,7 +83,7 @@ void loop() {
       unsigned int duration = (high << 8) | low;
       
       // 反向水泵
-      analogWrite(pumpVoltagePin, speed); // 1. 设置转速 (0-5V)
+      //analogWrite(pumpVoltagePin, speed); // 1. 设置转速 (0-5V)
       digitalWrite(pumpDirPin, HIGH);     // 2. 逆时针 (反向)
       digitalWrite(pumpEnablePin, LOW);   // 3. 开启水泵
       pumpEndTime = millis() + duration;
@@ -92,7 +92,7 @@ void loop() {
     
     else if (cmd == 130) { // 130: 紧急停止
       digitalWrite(pumpEnablePin, HIGH);  // 关闭使能
-      analogWrite(pumpVoltagePin, 0);     // 建议停机时把电压也降到 0
+      //analogWrite(pumpVoltagePin, 0);     // 建议停机时把电压也降到 0
       isPumping = false;
     }
   }
@@ -101,7 +101,7 @@ void loop() {
   // 因为没有用 delay()，所以在这个检查期间，Arduino 可以随时回去接收 TTL 信号！
   if (isPumping && millis() >= pumpEndTime) {
     digitalWrite(pumpEnablePin, HIGH); // 关水泵
-    analogWrite(pumpVoltagePin, 0);    // 转速归零 (可选，更安全)
+    //analogWrite(pumpVoltagePin, 0);    // 转速归零 (可选，更安全)
     digitalWrite(pumpDirPin, LOW);     // 恢复正向
     isPumping = false;
   }
@@ -112,7 +112,7 @@ void loop() {
     if (!isPumping) {
       digitalWrite(pumpDirPin, LOW);
       digitalWrite(pumpEnablePin, LOW);
-      analogWrite(pumpVoltagePin, 255); // 全速
+      //analogWrite(pumpVoltagePin, 255); // 全速
       pumpEndTime = millis() + 500;
       Serial.print("Pressed");
       isPumping = true;

@@ -270,7 +270,7 @@ class FixationTask:
 # ==========================================
 if __name__ == '__main__':
     # 1. 启动眼动仪 Server 和共享内
-    is_simulating = 1
+    is_simulating = 0
     shared_data = SharedGazeData()
     if is_simulating == 0:
         p_server = EyetrackerServer(shared_data, "EyeControl_SDK.dll", 100)
