@@ -2,6 +2,7 @@
 import serial
 import serial.tools.list_ports as list_ports
 import time
+import winsound
 from trodesnetwork import socket # 假设你已安装 SpikeGadgets 的 Python API
 
 
@@ -65,6 +66,28 @@ class ArduinoController:
 
             payload = bytes([128,high_byte,low_byte,speed_byte])
             self.conn.write(payload)
+        
+        # 播放奖励提示音：跟随奖励时长发出嘀嘀嘀声音
+        self._play_reward_sound(duration_ms)
+    
+    def _play_reward_sound(self, duration_ms):
+        """
+        在奖励期间播放提示音
+        :param duration_ms: 奖励时长（毫秒），声音会跟随这个时长持续播放
+        """
+        try:
+            # 计算需要播放多少次短音（每100ms一个嘀声）
+            beep_count = max(1, int(duration_ms / 100))
+            beep_duration = min(50, duration_ms // beep_count)  # 每个嘀声的持续时间
+            
+            for i in range(beep_count):
+                # 播放 1000Hz 的声音
+                winsound.Beep(1000, beep_duration)
+                # 如果不是最后一个，间隔一段时间
+                if i < beep_count - 1:
+                    time.sleep(0.02)
+        except Exception as e:
+            print(f"[Audio] Failed to play reward sound: {e}")
     
     def drain(self, duration_ms=32767, speed=255):
         """
