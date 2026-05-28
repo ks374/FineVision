@@ -53,13 +53,13 @@ class PumpControllerApp:
         btn_fwd_2s.pack(fill="x", pady=5)
 
         # 2. 正转 10s
-        btn_fwd_10s = tk.Button(frame_ctrl, text="🌊 正转 10s (大量给水)", font=("Arial", 12),
-                                command=lambda: self.send_pump_cmd(128, 10000), bg="#b2ebf2", height=2)
+        btn_fwd_10s = tk.Button(frame_ctrl, text="🌊 正转 50s (大量给水)", font=("Arial", 12),
+                                command=lambda: self.send_pump_cmd(128, 50000), bg="#b2ebf2", height=2)
         btn_fwd_10s.pack(fill="x", pady=5)
 
         # 3. 反转 20s
-        btn_rev_20s = tk.Button(frame_ctrl, text="🔄 反转 20s (排空管路)", font=("Arial", 12),
-                                command=lambda: self.send_pump_cmd(129, 20000), bg="#fff9c4", height=2)
+        btn_rev_20s = tk.Button(frame_ctrl, text="🔄 反转 80s (排空管路)", font=("Arial", 12),
+                                command=lambda: self.send_pump_cmd(129, 80000), bg="#fff9c4", height=2)
         btn_rev_20s.pack(fill="x", pady=5)
 
         # 4. 紧急停止

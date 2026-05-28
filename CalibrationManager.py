@@ -173,7 +173,7 @@ class CalibrationManager:
                         continue # 回到 while not point_acquired 的开头，重试该点
                     if self.arduino is not None:
                         # 给予 100 毫秒的水滴奖励（你可以把这个时长做成类属性或函数参数方便调节）
-                        self.arduino.reward(duration_ms=500) 
+                        self.arduino.reward(duration_ms=300) 
                         print(f" -> 触发液体奖励 (500ms)")
                     else:
                         print(" -> [警告] arduino 对象为 None，水泵触发被跳过！请检查主程序中的 CalibrationManager 实例化。")
@@ -379,7 +379,7 @@ class CalibrationManager:
 
                 if self.arduino is not None:
                     # 给予 100 毫秒的水滴奖励（你可以把这个时长做成类属性或函数参数方便调节）
-                    self.arduino.reward(duration_ms=500) 
+                    self.arduino.reward(duration_ms=300) 
                     print(f" -> 触发液体奖励 (500ms)")
                 else:
                     print(" -> [警告] arduino 对象为 None，水泵触发被跳过！请检查主程序中的 CalibrationManager 实例化。")
