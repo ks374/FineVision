@@ -1,0 +1,15 @@
+{
+    "parameters": {
+        "Subject ID": "Monkey_H18",
+        "Wait Time (s)": 10.0,
+        "Fix Window Radius (pix)": 100,
+        "Reward Length (s)": 0.2,
+        "ITI (s)": 3.0,
+        "Timeout (s)": 2.5,
+        "RF Center X (pix)": 200,
+        "RF Center Y (pix)": -200,
+        "Bar Speed (pix/s)": 400,
+        "Bar Length (pix)": 420,
+        "Bar Width (pix)": 10
+    }
+}
