@@ -2,9 +2,6 @@ import tkinter as tk
 from tkinter import messagebox
 import serial
 import serial.tools.list_ports
-import threading
-import time
-import winsound
 
 class PumpControllerApp:
     def __init__(self, root):
@@ -20,7 +17,6 @@ class PumpControllerApp:
         self._refresh_ports()
         
         self.root.after(300, self.auto_connect_com3)
-        self.root.after(20, self._poll_serial)
     
     def auto_connect_com3(self):
         """启动时自动连接 COM3"""
@@ -108,27 +104,6 @@ class PumpControllerApp:
                 self.lbl_status.config(text=f"状态: 已连接到 {port}", fg="green")
             except Exception as e:
                 messagebox.showerror("连接失败", f"无法连接到 {port}:\n{e}")
-
-    def _poll_serial(self):
-        """监听 Arduino 的脚踏通知，并让电脑扬声器发出三声短音。"""
-        try:
-            if self.serial_port and self.serial_port.is_open:
-                while self.serial_port.in_waiting:
-                    line = self.serial_port.readline().decode("utf-8", errors="ignore").strip()
-                    if "Pressed" in line:
-                        threading.Thread(target=self._play_pedal_beeps, daemon=True).start()
-        except (serial.SerialException, OSError):
-            pass
-        finally:
-            self.root.after(10, self._poll_serial)
-
-    @staticmethod
-    def _play_pedal_beeps():
-        """约 0.2 秒内播放“嘀嘀嘀”，不阻塞界面。"""
-        for index in range(3):
-            winsound.Beep(1800, 50)
-            if index < 2:
-                time.sleep(0.025)
 
     def send_pump_cmd(self, cmd_type, duration_ms):
         """发送水泵时长控制指令"""

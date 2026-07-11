@@ -10,10 +10,6 @@ const int pumptap = 12;        // 脚踏开关输入引脚
 unsigned long pumpEndTime = 0;
 bool isPumping = false;
 
-// 脚踏触发后先通知电脑播放提示音，300 ms 后再按原模式给水
-unsigned long pedalRewardStartTime = 0;
-bool pedalRewardPending = false;
-
 // 🌟 新增：脚踏边沿检测变量
 bool lastTapState = LOW;
 
@@ -62,7 +58,6 @@ void loop() {
     // 参数通道 (Pump Control)
     // =====================================
     else if (cmd == 128) { // 128: Reward 正常给水
-      pedalRewardPending = false; // 手动命令优先，取消等待中的脚踏给水
       // 等待后面跟着的 2 个字节的参数 (持续时间)
       while (Serial.available() < 3) { /* 死等几微秒 */ }
       byte highByte = Serial.read();
@@ -81,7 +76,6 @@ void loop() {
     }
     
     else if (cmd == 129) { // 129: Drain 排水
-      pedalRewardPending = false;
       while (Serial.available() < 3) {}
       byte high = Serial.read();
       byte low = Serial.read();
@@ -97,7 +91,6 @@ void loop() {
     }
     
     else if (cmd == 130) { // 130: 紧急停止
-      pedalRewardPending = false;
       digitalWrite(pumpEnablePin, HIGH);  // 关闭使能
       //analogWrite(pumpVoltagePin, 0);     // 建议停机时把电压也降到 0
       isPumping = false;
@@ -113,24 +106,16 @@ void loop() {
     isPumping = false;
   }
 
-  // 脚踏提示音开始 300 ms 后，按原来的参数给水 300 ms
-  if (pedalRewardPending && (long)(millis() - pedalRewardStartTime) >= 0) {
-    pedalRewardPending = false;
+  // 3. 🌟 脚踏开关：上升沿触发，单次出水 0.5s
+  bool currentTapState = digitalRead(pumptap);
+  if (currentTapState == HIGH && lastTapState == LOW) {
     if (!isPumping) {
       digitalWrite(pumpDirPin, LOW);
       digitalWrite(pumpEnablePin, LOW);
+      //analogWrite(pumpVoltagePin, 255); // 全速
       pumpEndTime = millis() + 300;
+      Serial.print("Pressed");
       isPumping = true;
-    }
-  }
-
-  // 3. 🌟 脚踏开关：上升沿触发，先响三声，0.3s 后单次出水 0.3s
-  bool currentTapState = digitalRead(pumptap);
-  if (currentTapState == HIGH && lastTapState == LOW) {
-    if (!isPumping && !pedalRewardPending) {
-      Serial.println("Pressed");
-      pedalRewardStartTime = millis() + 300;
-      pedalRewardPending = true;
     }
   }
   lastTapState = currentTapState;
