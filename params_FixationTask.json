@@ -1,11 +1,11 @@
 {
     "parameters": {
-        "Subject ID": "Monkey_H18",
+        "Subject ID": "Monkey_H18nnnnnnn",
         "Wait Time (s)": 10.0,
-        "Stim Duration (s)": 1.8,
-        "Fix Window Radius (pix)": 300,
-        "Reward Length (s)": 0.43,
-        "ITI (s)": 5.0,
-        "Timeout (s)": 2.5
+        "Stim Duration (s)": 1.6,
+        "Fix Window Radius (pix)": 200,
+        "Reward Length (s)": 1.0,
+        "ITI (s)": 4.0,
+        "Timeout (s)": 0.1
     }
 }

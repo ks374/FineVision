@@ -36,7 +36,7 @@ class FixationTask:
 
         # --- 视觉刺激初始化 ---
         # 猴子屏幕：中心注视点
-        self.stim_fix_point = visual.Circle(win_sub, radius=15, fillColor='green', lineColor='green', pos=(0,0))
+        self.stim_fix_point = visual.Circle(win_sub, radius=15, fillColor='white', lineColor='white', pos=(0,0))
         
         # 控制台屏幕：包含注视点、实时眼动光标、隐形的“注视窗口”边界
         self.ctl_fix_point = visual.Circle(win_ctl, radius=15 * self.scale_x, fillColor='green', pos=(0,0))
