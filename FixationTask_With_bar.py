@@ -829,7 +829,7 @@ class FixationTask:
         self.scale_y = win_ctl.size[1] / win_sub.size[1]
 
         # ========== 鼠标模拟模式：用鼠标替代眼动仪 ==========
-        self.use_mouse_gaze = True  # 设为 True 启用鼠标模拟gaze
+        self.use_mouse_gaze = bool(self.is_simulating)  # 设为 True 启用鼠标模拟gaze
         if self.use_mouse_gaze:
             from psychopy import event as pyevent
             self.mouse = pyevent.Mouse(win=self.win_sub)

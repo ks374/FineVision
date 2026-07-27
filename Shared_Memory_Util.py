@@ -23,7 +23,8 @@ class SharedGazeData:
         self._yl = Value('d', 0.0)
         self._xr = Value('d', 0.0)
         self._yr = Value('d', 0.0)
-        #self._timestamp = Value('d', 0.0)
+        # 与任务日志共用同一会话原点的单调时间（秒）。
+        self._timestamp = Value('d', 0.0)
         self._valid = Value('i', 0)
 
         # --- 2. Buffer 历史数据 (用于不丢包记录) ---
@@ -32,7 +33,7 @@ class SharedGazeData:
         self._buf_yl = Array('d', buffer_size)
         self._buf_xr = Array('d', buffer_size)
         self._buf_yr = Array('d', buffer_size)
-        #self._buf_ts = Array('d', buffer_size) # 时间戳 buffer
+        self._buf_ts = Array('d', buffer_size)
         
         # 这是一个指针，指向 buffer 中最新写入的位置 (0 ~ 999)
         self._head_ptr = Value('i', -1) 
@@ -81,7 +82,7 @@ class SharedGazeData:
             self._yl.value = data.get('yl', 0.0)
             self._xr.value = data.get('xr', 0.0)
             self._yr.value = data.get('yr', 0.0)
-            #self._timestamp.value = data.get('timestamp', 0.0)
+            self._timestamp.value = data.get('timestamp', 0.0)
             if self._xl.value == -999 and self._yl.value == -999 and self._xr.value == -999 and self._yr.value == -999:
                 self._valid.value = 0
             else:
@@ -96,7 +97,7 @@ class SharedGazeData:
             self._buf_yl[next_idx] = self._yl.value
             self._buf_xr[next_idx] = self._xr.value
             self._buf_yr[next_idx] = self._yr.value
-            #self._buf_ts[next_idx] = self._timestamp.value
+            self._buf_ts[next_idx] = self._timestamp.value
             
             # 更新指针
             self._head_ptr.value = next_idx
@@ -109,7 +110,7 @@ class SharedGazeData:
             return {
                 'xl': self._xl.value, 'yl': self._yl.value,
                 'xr': self._xr.value, 'yr': self._yr.value,
-                #'timestamp': self._timestamp.value,
+                'timestamp': self._timestamp.value,
                 'valid': bool(self._valid.value)
             }
     
@@ -119,7 +120,8 @@ class SharedGazeData:
         yl = data['yl'] * self._gain_yl.value + self._offset_yl.value
         xr = data['xr'] * self._gain_xr.value + self._offset_xr.value
         yr = data['yr'] * self._gain_yr.value + self._offset_yr.value
-        x = (xl+xl)/2
+        # 双眼平均。原实现误写成 (xl + xl) / 2，导致右眼 X 完全未参与。
+        x = (xl+xr)/2
         y = (yl+yr)/2
         return {
             'x': x,
@@ -128,7 +130,7 @@ class SharedGazeData:
             'yl': yl ,
             'xr': xr ,
             'yr': yr ,
-            #'timestamp': data['timestamp'],
+            'timestamp': data['timestamp'],
             'valid': bool(data['valid'])
         }
 

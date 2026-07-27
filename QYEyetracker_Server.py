@@ -1,6 +1,7 @@
 # %%
 import time
 from multiprocessing import Process
+from queue import Full
 import cv2
 # 假设你之前的 SDK 封装保存在 QYTracker_util.py 中
 from FV_QY_Eyetracker import QYTracker 
@@ -10,11 +11,26 @@ class EyetrackerServer(Process):
     眼动仪后台服务进程。
     继承自 multiprocessing.Process，确保它运行在独立的 CPU 核心上。
     """
-    def __init__(self, shared_data, dll_path, frame_rate=100):
+    def __init__(
+        self,
+        shared_data,
+        dll_path,
+        frame_rate=100,
+        gaze_log_queue=None,
+        session_t0=None,
+        dropped_samples=None,
+    ):
         super().__init__()
         self.shared_data = shared_data
         self.dll_path = dll_path
         self.frame_rate = frame_rate
+        self.gaze_log_queue = gaze_log_queue
+        # time.perf_counter() is system-wide on Windows. Passing the parent's
+        # origin makes eye samples and PsychoPy task events directly comparable.
+        self.session_t0 = (
+            float(session_t0) if session_t0 is not None else time.perf_counter()
+        )
+        self.dropped_samples = dropped_samples
         self.daemon = True  # 随主进程一起退出
 
 
@@ -50,26 +66,36 @@ class EyetrackerServer(Process):
                 
                 
                     if gaze_raw:
+                        sample_time = time.perf_counter() - self.session_t0
                         # 将 SDK 的格式映射到你的 SharedGazeData 字典格式
                         # 注意：根据 SDK，stEyeCtl_EyeDataEx 包含双眼和原始点数据 [cite: 47-60]
-                        #current_frame_time = gaze_raw.get('time_frame',0.0)
                         current_xl = gaze_raw.get('xl', -999.0)
-                        if current_xl != -999.0 and current_xl != -999:
-                            is_eye_detected = True
-                        else:
-                            is_eye_detected = False
                         
                         formatted_data = {
                             'xl': current_xl,
                             'yl': gaze_raw.get('yl', 0.0),
                             'xr': gaze_raw.get('xr', 0.0),
                             'yr': gaze_raw.get('yr', 0.0),
-                            #'timestamp': gaze_raw.get('time_frame', 0.0),
-                            #'valid': gaze_raw.get('valid', True)
+                            'timestamp': sample_time,
                         }
                         # 4. 写入共享内存 (极速操作)
                         self.shared_data.update(formatted_data)
-                        #last_timestamp = current_frame_time
+                        gaze_cal = self.shared_data.get_latest_cal()
+                        is_eye_detected = bool(gaze_cal["valid"])
+
+                        # 仅把轻量级数值放入队列；CSV 磁盘写入由另一个进程批量完成。
+                        if self.gaze_log_queue is not None:
+                            gaze_x = gaze_cal["x"] if is_eye_detected else -999.0
+                            gaze_y = gaze_cal["y"] if is_eye_detected else -999.0
+                            try:
+                                self.gaze_log_queue.put_nowait(
+                                    (sample_time, gaze_x, gaze_y)
+                                )
+                            except Full:
+                                # 绝不让磁盘异常反向阻塞眼动采集或任务显示。
+                                if self.dropped_samples is not None:
+                                    with self.dropped_samples.get_lock():
+                                        self.dropped_samples.value += 1
                     last_poll_time = current_time_perf
                 else:
                     time.sleep(0)
