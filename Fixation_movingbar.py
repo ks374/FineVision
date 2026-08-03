@@ -16,8 +16,7 @@ from EyeDataLogger import GazeCsvWriter, STOP_TOKEN
 from FineVision_Notebook import FineVision_Notebook
 from FineVision_Util import ArduinoController
 from GazeTrackerRenderer import GazeTrackerRenderer
-from QYEyetracker_Server import EyetrackerServer
-from Shared_Memory_Util import SharedGazeData
+from eyetracker import create_tracker_runtime
 
 
 IS_SIMULATING = 0
@@ -289,6 +288,7 @@ class FixationMovingBarTask:
         session_timestamp,
         gaze_log_queue,
         dropped_samples,
+        tracker_backend=None,
     ):
         self.win_sub = win_sub
         self.win_ctl = win_ctl
@@ -300,6 +300,7 @@ class FixationMovingBarTask:
         self.session_timestamp = session_timestamp
         self.gaze_log_queue = gaze_log_queue
         self.dropped_samples = dropped_samples
+        self.tracker_backend = tracker_backend
         self._last_sim_gaze_log_time = -math.inf
 
         self.scale_x = win_ctl.size[0] / win_sub.size[0]
@@ -466,6 +467,20 @@ class FixationMovingBarTask:
     def _mark_time(self, trial_data, field):
         if trial_data[field] is None:
             trial_data[field] = self.now()
+            tracker_event = {
+                "Time_DrawFinish": "FIX_ON",
+                "Time_BarOn": "BAR_ON",
+                "Time_BarOff": "BAR_OFF",
+                "Time_FixationPointOff": "FIX_OFF",
+            }.get(field)
+            if tracker_event is not None:
+                self._send_tracker_event(
+                    f"{tracker_event} TRIAL {trial_data['Trial']}"
+                )
+
+    def _send_tracker_event(self, message):
+        if self.tracker_backend is not None:
+            self.tracker_backend.send_event(message)
 
     def _schedule_flip_time(self, trial_data, field):
         if trial_data[field] is None:
@@ -483,7 +498,7 @@ class FixationMovingBarTask:
         )
 
     def _log_simulated_gaze(self, gaze):
-        if not self.is_simulating:
+        if not self.is_simulating or self.gaze_log_queue is None:
             return
         sample_time = self.now()
         if sample_time - self._last_sim_gaze_log_time < 1.0 / EYE_TRACKER_RATE_HZ:
@@ -535,6 +550,9 @@ class FixationMovingBarTask:
                     candidate_start = detected_at
                 elif detected_at - candidate_start >= self.fix_acquire_s:
                     trial_data["Time_GazeEnter"] = candidate_start
+                    self._send_tracker_event(
+                        f"GAZE_ACQUIRED TRIAL {trial_data['Trial']}"
+                    )
                     return candidate_start, pause_requested
             else:
                 candidate_start = None
@@ -633,6 +651,7 @@ class FixationMovingBarTask:
         )
         event.clearEvents()
         self.gaze_renderer.reset_trail()
+        self._send_tracker_event(f"TRIALID {trial_number}")
 
         self.arduino.trial_start()
         trial_data["Time_TrialStart"] = self.now()
@@ -664,6 +683,7 @@ class FixationMovingBarTask:
         if status == "Success":
             self.arduino.trial_success()
             trial_data["Time_Reward"] = self.now()
+            self._send_tracker_event(f"REWARD TRIAL {trial_number}")
             self.arduino.reward(int(self.reward_len_s * 1000.0))
         elif status == "Break":
             self._black_out(trial_data)
@@ -676,6 +696,14 @@ class FixationMovingBarTask:
         self.arduino.trial_end()
         trial_data["Status"] = status
         trial_data["Time_End"] = self.now()
+        self._send_tracker_event(f"!V TRIAL_VAR Status {status}")
+        self._send_tracker_event(
+            f"!V TRIAL_VAR Direction {trial_data['Direction']}"
+        )
+        self._send_tracker_event(
+            f"!V TRIAL_VAR Range_deg {trial_data['Range_deg']}"
+        )
+        self._send_tracker_event(f"TRIAL_RESULT {status}")
         return trial_data, pause_requested
 
     def _write_trial(self, trial_data):
@@ -773,41 +801,41 @@ def create_session_dir(script_dir):
     return timestamp, candidate
 
 
-def main():
+def main(tracker_mode="qy"):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     session_timestamp, save_dir = create_session_dir(script_dir)
     session_t0 = time.perf_counter()
 
-    gaze_log_path = os.path.join(
-        save_dir,
-        f"Fixation_movingbar_eye_log_{session_timestamp}.csv",
-    )
-    gaze_log_queue = Queue(maxsize=20000)
+    save_gaze_csv = str(tracker_mode).lower() != "eyelink"
+    gaze_log_queue = Queue(maxsize=20000) if save_gaze_csv else None
     dropped_samples = Value("i", 0)
-    gaze_writer = GazeCsvWriter(gaze_log_queue, gaze_log_path)
-    gaze_writer.start()
+    gaze_writer = None
+    if save_gaze_csv:
+        gaze_log_path = os.path.join(
+            save_dir,
+            f"Fixation_movingbar_eye_log_{session_timestamp}.csv",
+        )
+        gaze_writer = GazeCsvWriter(gaze_log_queue, gaze_log_path)
+        gaze_writer.start()
 
-    shared_data = None
-    p_server = None
+    tracker_runtime = None
     win_subject = None
     win_control = None
     task = None
 
     try:
-        shared_data = SharedGazeData()
-        if IS_SIMULATING == 0:
-            p_server = EyetrackerServer(
-                shared_data,
-                "EyeControl_SDK.dll",
-                EYE_TRACKER_RATE_HZ,
-                gaze_log_queue=gaze_log_queue,
-                session_t0=session_t0,
-                dropped_samples=dropped_samples,
-            )
-            p_server.start()
-            print("EyeTracker Server started.")
-        else:
-            print("Running in mouse simulation mode.")
+        tracker_runtime = create_tracker_runtime(
+            tracker_mode,
+            is_simulating=bool(IS_SIMULATING),
+            session_id=f"FixationMovingBar_{session_timestamp}",
+            save_dir=save_dir,
+            session_t0=session_t0,
+            screen_size=(1920, 1080),
+            qy_sample_rate=EYE_TRACKER_RATE_HZ,
+            gaze_log_queue=gaze_log_queue,
+            dropped_samples=dropped_samples,
+        )
+        gaze_source = tracker_runtime.gaze_source
 
         win_subject = visual.Window(
             screen=MONITOR_ID_SUBJECT,
@@ -825,7 +853,7 @@ def main():
             waitBlanking=False,
             color="black",
             units="pix",
-            title="Fixation Moving-Bar Control View",
+            title=f"Fixation Moving-Bar Control View ({tracker_runtime.mode})",
         )
 
         task_manager = FineVision_Notebook(
@@ -835,7 +863,7 @@ def main():
         task = FixationMovingBarTask(
             win_subject,
             win_control,
-            shared_data,
+            gaze_source,
             task_manager,
             IS_SIMULATING,
             session_t0,
@@ -843,7 +871,9 @@ def main():
             session_timestamp,
             gaze_log_queue,
             dropped_samples,
+            tracker_runtime,
         )
+        print(f"[Session] Tracker: {tracker_runtime.mode}")
         print(f"[Session] Logs: {save_dir}")
         task.run_task()
 
@@ -859,36 +889,35 @@ def main():
             except Exception:
                 traceback.print_exc()
 
-        if shared_data is not None:
-            shared_data.stop()
-        if p_server is not None:
-            p_server.join(timeout=10)
-            if p_server.is_alive():
-                p_server.terminate()
-                p_server.join(timeout=2)
+        if tracker_runtime is not None:
+            try:
+                tracker_runtime.close()
+            except Exception:
+                traceback.print_exc()
 
-        try:
-            gaze_log_queue.put(STOP_TOKEN, timeout=2)
-        except Full:
-            print("[Warning] Gaze log queue was full during shutdown.")
-        gaze_writer.join(timeout=10)
-        if gaze_writer.is_alive():
-            gaze_writer.terminate()
-            gaze_writer.join(timeout=2)
+        if gaze_writer is not None:
+            try:
+                gaze_log_queue.put(STOP_TOKEN, timeout=2)
+            except Full:
+                print("[Warning] Gaze log queue was full during shutdown.")
+            gaze_writer.join(timeout=10)
+            if gaze_writer.is_alive():
+                gaze_writer.terminate()
+                gaze_writer.join(timeout=2)
 
-        if gaze_writer.exitcode == 0:
-            gaze_log_queue.close()
-            gaze_log_queue.join_thread()
-        else:
-            gaze_log_queue.cancel_join_thread()
-            gaze_log_queue.close()
+            if gaze_writer.exitcode == 0:
+                gaze_log_queue.close()
+                gaze_log_queue.join_thread()
+            else:
+                gaze_log_queue.cancel_join_thread()
+                gaze_log_queue.close()
 
         if dropped_samples.value:
             print(
                 f"[Warning] Dropped {dropped_samples.value} gaze samples "
                 "because the logging queue was full."
             )
-        if gaze_writer.exitcode not in (0, None):
+        if gaze_writer is not None and gaze_writer.exitcode not in (0, None):
             print(
                 f"[Warning] Gaze CSV writer exited with code "
                 f"{gaze_writer.exitcode}."

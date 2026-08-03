@@ -1,0 +1,10 @@
+"""Run the multi-stimulus saccade task with EyeLink and EDF output."""
+
+from multiprocessing import freeze_support
+
+from SaccadeMultiStimTask import main
+
+
+if __name__ == "__main__":
+    freeze_support()
+    main("eyelink")

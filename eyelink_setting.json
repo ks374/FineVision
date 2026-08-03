@@ -1,0 +1,8 @@
+{
+  "host_ip": "100.1.1.1",
+  "sample_rate_hz": 1000,
+  "sample_source": "href",
+  "calibration_file": "eyelink_default_setting.json",
+  "native_eyelink_calibration": false,
+  "notes": "HREF samples are mapped by FineVision's custom CalibrationManager. Camera alignment is still performed on the EyeLink Host."
+}

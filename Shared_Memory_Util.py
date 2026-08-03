@@ -7,9 +7,12 @@ from Json_manager import read_json
 
 
 class SharedGazeData:
-    def __init__(self, buffer_size=1000):
+    """Hardware-neutral, process-safe storage for the latest gaze sample."""
+
+    def __init__(self, buffer_size=1000, calibration_file="default_setting.json"):
         self._size = buffer_size
         self._lock = Lock()
+        self.calibration_file = calibration_file
         
         # --- 0. Calibration parameter --- 
         self._offset_xl = Value('d',0.0) ; self._offset_yl = Value('d',0.0)
@@ -26,6 +29,8 @@ class SharedGazeData:
         # 与任务日志共用同一会话原点的单调时间（秒）。
         self._timestamp = Value('d', 0.0)
         self._valid = Value('i', 0)
+        self._left_valid = Value('i', 0)
+        self._right_valid = Value('i', 0)
 
         # --- 2. Buffer 历史数据 (用于不丢包记录) ---
         # 使用 Array 开辟共享数组
@@ -48,7 +53,7 @@ class SharedGazeData:
         fallback_right = {'ox': 0.0, 'oy': 0.0, 'gx': 1.0, 'gy': 1.0}
         
         # 2. 使用你的 Json_manager 一键读取
-        settings = read_json("default_setting.json") 
+        settings = read_json(self.calibration_file)
         
         # 安全兜底：如果 read_json 失败返回了 None，给它一个空字典防止后续 .get() 报错
         if not settings:
@@ -83,10 +88,24 @@ class SharedGazeData:
             self._xr.value = data.get('xr', 0.0)
             self._yr.value = data.get('yr', 0.0)
             self._timestamp.value = data.get('timestamp', 0.0)
-            if self._xl.value == -999 and self._yl.value == -999 and self._xr.value == -999 and self._yr.value == -999:
-                self._valid.value = 0
-            else:
-                self._valid.value = 1
+            inferred_left_valid = not (
+                self._xl.value == -999 or self._yl.value == -999
+            )
+            inferred_right_valid = not (
+                self._xr.value == -999 or self._yr.value == -999
+            )
+            self._left_valid.value = int(
+                bool(data.get('left_valid', inferred_left_valid))
+            )
+            self._right_valid.value = int(
+                bool(data.get('right_valid', inferred_right_valid))
+            )
+            self._valid.value = int(
+                bool(data.get(
+                    'valid',
+                    self._left_valid.value or self._right_valid.value,
+                ))
+            )
 
             # B. 更新 Buffer (给数据保存用)
             # 计算下一个写入位置：(当前位置 + 1) % 总长度
@@ -111,18 +130,30 @@ class SharedGazeData:
                 'xl': self._xl.value, 'yl': self._yl.value,
                 'xr': self._xr.value, 'yr': self._yr.value,
                 'timestamp': self._timestamp.value,
-                'valid': bool(self._valid.value)
+                'valid': bool(self._valid.value),
+                'left_valid': bool(self._left_valid.value),
+                'right_valid': bool(self._right_valid.value),
             }
     
     def get_latest_cal(self):
         data = self.get_latest()
-        xl = data['xl'] * self._gain_xl.value + self._offset_xl.value
-        yl = data['yl'] * self._gain_yl.value + self._offset_yl.value
-        xr = data['xr'] * self._gain_xr.value + self._offset_xr.value
-        yr = data['yr'] * self._gain_yr.value + self._offset_yr.value
+        left_valid = bool(data['left_valid'])
+        right_valid = bool(data['right_valid'])
+        xl = data['xl'] * self._gain_xl.value + self._offset_xl.value if left_valid else -999.0
+        yl = data['yl'] * self._gain_yl.value + self._offset_yl.value if left_valid else -999.0
+        xr = data['xr'] * self._gain_xr.value + self._offset_xr.value if right_valid else -999.0
+        yr = data['yr'] * self._gain_yr.value + self._offset_yr.value if right_valid else -999.0
         # 双眼平均。原实现误写成 (xl + xl) / 2，导致右眼 X 完全未参与。
-        x = (xl+xr)/2
-        y = (yl+yr)/2
+        valid_points = []
+        if left_valid:
+            valid_points.append((xl, yl))
+        if right_valid:
+            valid_points.append((xr, yr))
+        if valid_points:
+            x = sum(point[0] for point in valid_points) / len(valid_points)
+            y = sum(point[1] for point in valid_points) / len(valid_points)
+        else:
+            x = y = -999.0
         return {
             'x': x,
             'y': y,
@@ -131,7 +162,9 @@ class SharedGazeData:
             'xr': xr ,
             'yr': yr ,
             'timestamp': data['timestamp'],
-            'valid': bool(data['valid'])
+            'valid': bool(valid_points),
+            'left_valid': left_valid,
+            'right_valid': right_valid,
         }
 
     def get_buffer_snapshot(self, last_n=None):

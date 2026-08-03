@@ -1,8 +1,19 @@
 from collections import deque
-from psychopy import visual, event
+
+from psychopy import event, visual
+
 
 class GazeTrackerRenderer:
-    def __init__(self, win_ctl, shared_data, scale_x, scale_y,is_simulating=0):
+    """Draw the operator gaze cursor and return task-space gaze samples."""
+
+    def __init__(
+        self,
+        win_ctl,
+        shared_data,
+        scale_x,
+        scale_y,
+        is_simulating=0,
+    ):
         self.win_ctl = win_ctl
         self.shared_data = shared_data
         self.scale_x = scale_x
@@ -11,48 +22,60 @@ class GazeTrackerRenderer:
 
         if self.is_simulating:
             self.mouse = event.Mouse(win=win_ctl)
-            print("模拟模式！")
-        
-        # 把所有的视觉元素初始化都收纳在这里
-        self.cursor = visual.Circle(win_ctl, radius=6, fillColor='yellow', opacity=0.8)
+            print("Mouse gaze simulation enabled.")
+
+        self.cursor = visual.Circle(
+            win_ctl,
+            radius=6,
+            fillColor="yellow",
+            opacity=0.8,
+        )
         self.tail_line = visual.ShapeStim(
-            win_ctl, vertices=[(0,0),(0,0)], closeShape=False,
-            lineWidth=2.0, lineColor='yellow', opacity=0.6
+            win_ctl,
+            vertices=[(0, 0), (0, 0)],
+            closeShape=False,
+            lineWidth=2.0,
+            lineColor="yellow",
+            opacity=0.6,
         )
         self.trail = deque(maxlen=60)
-        self.smooth_buffer = deque(maxlen=5) # 新增：用于存储最近5个点来计算滑动平均
+        # EyeLink decisions use the newest unfiltered sample. QY preserves the
+        # existing five-frame smoothing on the operator view.
+        smooth_samples = (
+            1 if getattr(shared_data, "mode", None) == "eyelink" else 5
+        )
+        self.smooth_buffer = deque(maxlen=smooth_samples)
 
     def reset_trail(self):
-        """每个 Trial 开始时调用，清空尾巴"""
         self.trail.clear()
+        self.smooth_buffer.clear()
 
     def update_and_draw(self):
-        """在每一帧渲染前调用，自动获取数据并画上去"""
         if self.is_simulating:
-            m_pos = self.mouse.getPos()
-            gx,gy = m_pos[0],m_pos[1]
+            mouse_x, mouse_y = self.mouse.getPos()
             gaze = {
-                'x':gx/self.scale_x,
-                'y':gy/self.scale_y,
-                'valid':1
+                "x": mouse_x / self.scale_x,
+                "y": mouse_y / self.scale_y,
+                "valid": True,
             }
         else:
             gaze = self.shared_data.get_latest_cal()
-            if gaze['valid']:
-                # 将当前坐标加入平滑缓冲区
-                self.smooth_buffer.append((gaze['x'], gaze['y']))
-                gaze['x'] = sum(p[0] for p in self.smooth_buffer) / len(self.smooth_buffer)
-                gaze['y'] = sum(p[1] for p in self.smooth_buffer) / len(self.smooth_buffer)
+            if gaze["valid"]:
+                self.smooth_buffer.append((gaze["x"], gaze["y"]))
+                gaze["x"] = sum(
+                    point[0] for point in self.smooth_buffer
+                ) / len(self.smooth_buffer)
+                gaze["y"] = sum(
+                    point[1] for point in self.smooth_buffer
+                ) / len(self.smooth_buffer)
+                mouse_x = gaze["x"] * self.scale_x
+                mouse_y = gaze["y"] * self.scale_y
 
-                # 计算缩放后的屏幕坐标
-                gx = gaze['x'] * self.scale_x
-                gy = gaze['y'] * self.scale_y
-        
-        if gaze['valid']:
-            self.trail.append((gx, gy))
+        if gaze["valid"]:
+            self.trail.append((mouse_x, mouse_y))
             if len(self.trail) >= 2:
                 self.tail_line.vertices = list(self.trail)
                 self.tail_line.draw()
-            self.cursor.pos = (gx, gy)
+            self.cursor.pos = (mouse_x, mouse_y)
             self.cursor.draw()
-        return gaze # 顺便把这帧的数据返回给主程序做逻辑判定
+        return gaze

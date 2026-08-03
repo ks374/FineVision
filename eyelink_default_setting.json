@@ -1,0 +1,14 @@
+{
+  "default_left_cal": {
+    "ox": 0.0,
+    "oy": 0.0,
+    "gx": 1.0,
+    "gy": 1.0
+  },
+  "default_right_cal": {
+    "ox": 0.0,
+    "oy": 0.0,
+    "gx": 1.0,
+    "gy": 1.0
+  }
+}

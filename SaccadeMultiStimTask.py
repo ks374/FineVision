@@ -18,7 +18,7 @@ from psychopy import event, visual
 
 from EyeDataLogger import GazeCsvWriter, STOP_TOKEN
 from FineVision_Notebook import FineVision_Notebook
-from QYEyetracker_Server import EyetrackerServer
+from eyetracker import create_tracker_runtime
 from SaccadeTask import (
     DEFAULT_PARAMS as SACCADE_DEFAULT_PARAMS,
     EYE_TRACKER_RATE_HZ,
@@ -31,7 +31,6 @@ from SaccadeTask import (
     TaskAbort,
     _validate_params,
 )
-from Shared_Memory_Util import SharedGazeData
 
 
 IS_SIMULATING = SACCADE_IS_SIMULATING
@@ -834,6 +833,19 @@ class SaccadeMultiStimTask(SaccadeTask):
     def _trial_log_fields(self):
         return TRIAL_LOG_FIELDS + CONDITION_LOG_FIELDS
 
+    def _send_trial_start_metadata(self, trial_data):
+        for field in (
+            "Condition_ID",
+            "Is_Control",
+            "Stim_Color_Name",
+            "Stim_Intensity_Level",
+            "Stim_Pos_X_deg",
+            "Stim_Pos_Y_deg",
+        ):
+            self._send_tracker_event(
+                f"!V TRIAL_VAR {field} {trial_data[field]}"
+            )
+
     def update_params(self):
         params = self.task_manager.exp_params
         condition_plan = _build_condition_plan(params, self.calibration)
@@ -1169,41 +1181,41 @@ def _create_session_dir(script_dir):
     return timestamp, candidate
 
 
-def main():
+def main(tracker_mode="qy"):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     session_timestamp, save_dir = _create_session_dir(script_dir)
     session_t0 = time.perf_counter()
 
-    gaze_log_path = os.path.join(
-        save_dir,
-        f"SaccadeMultiStim_eye_log_{session_timestamp}.csv",
-    )
-    gaze_log_queue = Queue(maxsize=20000)
+    save_gaze_csv = str(tracker_mode).lower() != "eyelink"
+    gaze_log_queue = Queue(maxsize=20000) if save_gaze_csv else None
     dropped_samples = Value("i", 0)
-    gaze_writer = GazeCsvWriter(gaze_log_queue, gaze_log_path)
-    gaze_writer.start()
+    gaze_writer = None
+    if save_gaze_csv:
+        gaze_log_path = os.path.join(
+            save_dir,
+            f"SaccadeMultiStim_eye_log_{session_timestamp}.csv",
+        )
+        gaze_writer = GazeCsvWriter(gaze_log_queue, gaze_log_path)
+        gaze_writer.start()
 
-    shared_data = None
-    p_server = None
+    tracker_runtime = None
     win_subject = None
     win_control = None
     task = None
 
     try:
-        shared_data = SharedGazeData()
-        if IS_SIMULATING == 0:
-            p_server = EyetrackerServer(
-                shared_data,
-                "EyeControl_SDK.dll",
-                EYE_TRACKER_RATE_HZ,
-                gaze_log_queue=gaze_log_queue,
-                session_t0=session_t0,
-                dropped_samples=dropped_samples,
-            )
-            p_server.start()
-            print("EyeTracker Server started.")
-        else:
-            print("Running in mouse simulation mode.")
+        tracker_runtime = create_tracker_runtime(
+            tracker_mode,
+            is_simulating=bool(IS_SIMULATING),
+            session_id=f"SaccadeMultiStim_{session_timestamp}",
+            save_dir=save_dir,
+            session_t0=session_t0,
+            screen_size=(1920, 1080),
+            qy_sample_rate=EYE_TRACKER_RATE_HZ,
+            gaze_log_queue=gaze_log_queue,
+            dropped_samples=dropped_samples,
+        )
+        gaze_source = tracker_runtime.gaze_source
 
         win_subject = visual.Window(
             screen=MONITOR_ID_SUBJECT,
@@ -1221,7 +1233,7 @@ def main():
             waitBlanking=False,
             color="black",
             units="pix",
-            title="Saccade Multi-Stim Control View",
+            title=f"Saccade Multi-Stim Control View ({tracker_runtime.mode})",
         )
 
         task_manager = FineVision_Notebook(
@@ -1234,13 +1246,15 @@ def main():
         task = SaccadeMultiStimTask(
             win_subject,
             win_control,
-            shared_data,
+            gaze_source,
             task_manager,
             IS_SIMULATING,
             session_t0,
             save_dir,
             session_timestamp,
+            tracker_runtime,
         )
+        print(f"[Session] Tracker: {tracker_runtime.mode}")
         print(f"[Session] Logs: {save_dir}")
         task.run_task()
 
@@ -1256,36 +1270,35 @@ def main():
             except Exception:
                 traceback.print_exc()
 
-        if shared_data is not None:
-            shared_data.stop()
-        if p_server is not None:
-            p_server.join(timeout=10)
-            if p_server.is_alive():
-                p_server.terminate()
-                p_server.join(timeout=2)
+        if tracker_runtime is not None:
+            try:
+                tracker_runtime.close()
+            except Exception:
+                traceback.print_exc()
 
-        try:
-            gaze_log_queue.put(STOP_TOKEN, timeout=2)
-        except Full:
-            print("[Warning] Gaze log queue was full during shutdown.")
-        gaze_writer.join(timeout=10)
-        if gaze_writer.is_alive():
-            gaze_writer.terminate()
-            gaze_writer.join(timeout=2)
+        if gaze_writer is not None:
+            try:
+                gaze_log_queue.put(STOP_TOKEN, timeout=2)
+            except Full:
+                print("[Warning] Gaze log queue was full during shutdown.")
+            gaze_writer.join(timeout=10)
+            if gaze_writer.is_alive():
+                gaze_writer.terminate()
+                gaze_writer.join(timeout=2)
 
-        if gaze_writer.exitcode == 0:
-            gaze_log_queue.close()
-            gaze_log_queue.join_thread()
-        else:
-            gaze_log_queue.cancel_join_thread()
-            gaze_log_queue.close()
+            if gaze_writer.exitcode == 0:
+                gaze_log_queue.close()
+                gaze_log_queue.join_thread()
+            else:
+                gaze_log_queue.cancel_join_thread()
+                gaze_log_queue.close()
 
         if dropped_samples.value:
             print(
                 f"[Warning] Dropped {dropped_samples.value} gaze samples "
                 "because the logging queue was full."
             )
-        if gaze_writer.exitcode not in (0, None):
+        if gaze_writer is not None and gaze_writer.exitcode not in (0, None):
             print(
                 f"[Warning] Gaze CSV writer exited with code "
                 f"{gaze_writer.exitcode}."

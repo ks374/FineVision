@@ -70,12 +70,20 @@ class EyetrackerServer(Process):
                         # 将 SDK 的格式映射到你的 SharedGazeData 字典格式
                         # 注意：根据 SDK，stEyeCtl_EyeDataEx 包含双眼和原始点数据 [cite: 47-60]
                         current_xl = gaze_raw.get('xl', -999.0)
+                        current_yl = gaze_raw.get('yl', -999.0)
+                        current_xr = gaze_raw.get('xr', -999.0)
+                        current_yr = gaze_raw.get('yr', -999.0)
+                        left_valid = current_xl != -999 and current_yl != -999
+                        right_valid = current_xr != -999 and current_yr != -999
                         
                         formatted_data = {
                             'xl': current_xl,
-                            'yl': gaze_raw.get('yl', 0.0),
-                            'xr': gaze_raw.get('xr', 0.0),
-                            'yr': gaze_raw.get('yr', 0.0),
+                            'yl': current_yl,
+                            'xr': current_xr,
+                            'yr': current_yr,
+                            'left_valid': left_valid,
+                            'right_valid': right_valid,
+                            'valid': left_valid or right_valid,
                             'timestamp': sample_time,
                         }
                         # 4. 写入共享内存 (极速操作)

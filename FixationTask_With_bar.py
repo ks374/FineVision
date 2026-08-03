@@ -11,8 +11,7 @@ import traceback
 import pandas as pd
 import json  # 新增：用于JSON保存
 
-from Shared_Memory_Util import SharedGazeData
-from QYEyetracker_Server import EyetrackerServer
+from eyetracker import create_tracker_runtime
 from Json_manager import update_json, read_json
 from FineVision_Notebook import FineVision_Notebook
 from GazeTrackerRenderer import GazeTrackerRenderer
@@ -1036,6 +1035,12 @@ class FixationTask:
             # ==========================================================
             print(f"\n--- Trial {trial_count} 开始 ---")
             self.arduino.trial_start()
+            if hasattr(self.shared_data, "send_event"):
+                self.shared_data.send_event(f"TRIALID {trial_count}")
+                self.win_sub.callOnFlip(
+                    self.shared_data.send_event,
+                    f"FIX_ON TRIAL {trial_count}",
+                )
 
             t_trial_start   = core.getTime()
             t_draw_finish   = None
@@ -1208,6 +1213,11 @@ class FixationTask:
                 "Bar_Rotation":    self._bar_params.get('bar_rotation', 0.0),
             }
 
+            if hasattr(self.shared_data, "send_event"):
+                self.shared_data.send_event(
+                    f"!V TRIAL_VAR Status {trial_status}"
+                )
+                self.shared_data.send_event(f"TRIAL_RESULT {trial_status}")
             self.behavior_log.append(trial_data)
 
             # ========== 修改：每次Trial结束立即保存 ==========
@@ -1221,15 +1231,18 @@ class FixationTask:
 # 4. 主程序入口 (Main)
 # ==========================================
 if __name__ == '__main__':
-    is_simulating = 0
-    shared_data = SharedGazeData()
-
-    if is_simulating == 0:
-        p_server = EyetrackerServer(shared_data, "EyeControl_SDK.dll", 100)
-        p_server.start()
-        print("EyeTracker Server Started.")
-    else:
-        print("Running simulation mode.")
+    tracker_mode = globals().get("TRACKER_MODE_OVERRIDE", "qy")
+    is_simulating = globals().get("IS_SIMULATING_OVERRIDE", 0)
+    tracker_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    tracker_runtime = create_tracker_runtime(
+        tracker_mode,
+        is_simulating=bool(is_simulating),
+        session_id=f"FixBar_{tracker_timestamp}",
+        save_dir=os.path.dirname(os.path.abspath(__file__)),
+        screen_size=(1920, 1080),
+        qy_sample_rate=100,
+    )
+    shared_data = tracker_runtime.gaze_source
 
     MONITOR_ID_SUBJECT = 1
     MONITOR_ID_CONTROL = 0
@@ -1303,9 +1316,7 @@ if __name__ == '__main__':
             fix_task.arduino.close()
         except Exception:
             pass
-        shared_data.stop()
-        if is_simulating != 1:
-            p_server.join()
+        tracker_runtime.close()
         try:
             win_subject.close()
         except Exception:

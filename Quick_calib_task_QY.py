@@ -1,4 +1,4 @@
-"""Backward-compatible QY quick-calibration entry point."""
+"""Run FineVision's quick calibration with the QY tracker."""
 
 from Calibration_Task import main
 
