@@ -3,7 +3,6 @@
 import csv
 import math
 import os
-import random
 import time
 import traceback
 from datetime import datetime
@@ -20,7 +19,7 @@ from QYEyetracker_Server import EyetrackerServer
 from Shared_Memory_Util import SharedGazeData
 
 
-IS_SIMULATING = 0
+IS_SIMULATING = 1
 MONITOR_ID_SUBJECT = 1
 MONITOR_ID_CONTROL = 0
 EYE_TRACKER_RATE_HZ = 100
@@ -28,76 +27,31 @@ EYE_TRACKER_RATE_HZ = 100
 
 DEFAULT_PARAMS = {
     "Subject ID": "Monkey_H18",
-    "Wait Time (s)": 5.0,
+    "Wait Time (s)": 10.0,
     "Fixation Acquire Time (ms)": 150,
     "Fixation Position X (deg)": 0.0,
     "Fixation Position Y (deg)": 0.0,
-    "Fixation Point Radius (deg)": 0.2,
-    "Fix Window Radius (deg)": 2.0,
-    "Fixation Duration Min (ms)": 300,
-    "Fixation Duration Max (ms)": 500,
-    "Gap Duration (ms)": 100,
-    "Stim Duration (ms)": 200,
-    "Stim Window After Stim Off (ms)": 300,
-    "Stim Hold Time (ms)": 100,
-    "Stim Window Radius (deg)": 2.0,
-    "Stim Position X (deg)": 4.0,
-    "Stim Position Y (deg)": -2.0,
-    "Stim Major Axis (deg)": 1.0,
-    "Stim Minor Axis (deg)": 1.0,
-    "Stim Orientation (deg)": 120,
-    "Stim Color R": 180,
+    "Fixation Point Radius (deg)": 0.4395,
+    "Fix Window Radius (deg)": 14.5705,
+    "Stim On After Fixation Start (ms)": 500,
+    "Fixation Point Off After Fixation Start (ms)": 1500,
+    "Stim Off After Fixation Start (ms)": 2000,
+    "Stim Hold Time (ms)": 300,
+    "Stim Window Radius (deg)": 4.3927,
+    "Stim Position X (deg)": 11.6790,
+    "Stim Position Y (deg)": 0.0,
+    "Stim Major Axis (deg)": 3.5148,
+    "Stim Minor Axis (deg)": 1.7361,
+    "Stim Orientation (deg)": 0,
+    "Stim Color R": 255,
     "Stim Color G": 0,
     "Stim Color B": 0,
-    "Viewing Distance (cm)": 60.0,
+    "Viewing Distance (cm)": 55.0,
     "Subject Monitor Width (cm)": 54.0,
     "Subject Monitor Height (cm)": 30.0,
-    "Reward Length (s)": 0.5,
-    "ITI (s)": 4.0,
-    "Timeout (s)": 0.5,
-}
-
-SACCADE_PARAMETER_GROUPS = {
-    "Session / 会话": [
-        "Subject ID",
-        "Wait Time (s)",
-    ],
-    "Fixation / 注视": [
-        "Fixation Acquire Time (ms)",
-        "Fixation Position X (deg)",
-        "Fixation Position Y (deg)",
-        "Fixation Point Radius (deg)",
-        "Fix Window Radius (deg)",
-        "Fixation Duration Min (ms)",
-        "Fixation Duration Max (ms)",
-    ],
-    "Timing / 时间": [
-        "Gap Duration (ms)",
-        "Stim Duration (ms)",
-        "Stim Window After Stim Off (ms)",
-        "Stim Hold Time (ms)",
-    ],
-    "Stimulus / 刺激": [
-        "Stim Window Radius (deg)",
-        "Stim Position X (deg)",
-        "Stim Position Y (deg)",
-        "Stim Major Axis (deg)",
-        "Stim Minor Axis (deg)",
-        "Stim Orientation (deg)",
-        "Stim Color R",
-        "Stim Color G",
-        "Stim Color B",
-    ],
-    "Display / 屏幕": [
-        "Viewing Distance (cm)",
-        "Subject Monitor Width (cm)",
-        "Subject Monitor Height (cm)",
-    ],
-    "Reward / 奖励": [
-        "Reward Length (s)",
-        "ITI (s)",
-        "Timeout (s)",
-    ],
+    "Reward Length (s)": 0.2,
+    "ITI (s)": 5.0,
+    "Timeout (s)": 2.5,
 }
 
 
@@ -112,7 +66,6 @@ TRIAL_LOG_FIELDS = [
     "Fixation_Position_deg",
     "Time_StimWindowEnter",
     "Time_StimOff",
-    "Time_StimWindowEnd",
     "Time_Reward",
     "Time_End",
     "Subject_ID",
@@ -134,12 +87,9 @@ TRIAL_LOG_FIELDS = [
     "Monitor_Width_cm",
     "Monitor_Height_cm",
     "Fixation_Acquire_Time_ms",
-    "Planned_Fixation_Duration_ms",
-    "Fixation_Duration_Min_ms",
-    "Fixation_Duration_Max_ms",
-    "Gap_Duration_ms",
-    "Stim_Duration_ms",
-    "Stim_Window_After_Stim_Off_ms",
+    "Stim_On_After_Fixation_Start_ms",
+    "Fixation_Point_Off_After_Fixation_Start_ms",
+    "Stim_Off_After_Fixation_Start_ms",
     "Stim_Hold_Time_ms",
 ]
 
@@ -151,7 +101,6 @@ TIME_FIELDS = [
     "Time_FixationPointOff",
     "Time_StimWindowEnter",
     "Time_StimOff",
-    "Time_StimWindowEnd",
     "Time_Reward",
     "Time_End",
 ]
@@ -164,14 +113,10 @@ class TaskAbort(Exception):
 class TrialCsvLogger:
     """Append and flush one row at the end of every trial."""
 
-    def __init__(self, csv_path, fieldnames=None):
+    def __init__(self, csv_path):
         self.csv_path = csv_path
-        self.fieldnames = list(fieldnames or TRIAL_LOG_FIELDS)
         self._file = open(csv_path, "w", newline="", encoding="utf-8-sig")
-        self._writer = csv.DictWriter(
-            self._file,
-            fieldnames=self.fieldnames,
-        )
+        self._writer = csv.DictWriter(self._file, fieldnames=TRIAL_LOG_FIELDS)
         self._writer.writeheader()
         self._file.flush()
 
@@ -216,47 +161,26 @@ def _make_ellipse_vertices(width, height, count=96):
 
 
 def _validate_params(params):
-    fix_acquire_ms = float(params["Fixation Acquire Time (ms)"])
-    fix_duration_min_ms = float(params["Fixation Duration Min (ms)"])
-    fix_duration_max_ms = float(params["Fixation Duration Max (ms)"])
-    gap_duration_ms = float(params["Gap Duration (ms)"])
-    stim_duration_ms = float(params["Stim Duration (ms)"])
-    stim_window_after_off_ms = float(
-        params["Stim Window After Stim Off (ms)"]
-    )
+    stim_on_ms = float(params["Stim On After Fixation Start (ms)"])
+    fix_off_ms = float(params["Fixation Point Off After Fixation Start (ms)"])
+    stim_off_ms = float(params["Stim Off After Fixation Start (ms)"])
     stim_hold_ms = float(params["Stim Hold Time (ms)"])
 
-    if fix_duration_min_ms < fix_acquire_ms:
+    if not 0 <= stim_on_ms < fix_off_ms < stim_off_ms:
         raise ValueError(
-            "Fixation Duration Min (ms) must be greater than or equal to "
-            "Fixation Acquire Time (ms)."
-        )
-    if fix_duration_max_ms < fix_duration_min_ms:
-        raise ValueError(
-            "Fixation Duration Max (ms) must be greater than or equal to "
-            "Fixation Duration Min (ms)."
-        )
-    if gap_duration_ms < 0:
-        raise ValueError("Gap Duration (ms) cannot be negative.")
-    if stim_duration_ms <= 0:
-        raise ValueError("Stim Duration (ms) must be greater than zero.")
-    if stim_window_after_off_ms < 0:
-        raise ValueError(
-            "Stim Window After Stim Off (ms) cannot be negative."
+            "Timing must satisfy: 0 <= Stim On < Fixation Point Off < Stim Off."
         )
     if stim_hold_ms <= 0:
         raise ValueError("Stim Hold Time (ms) must be greater than zero.")
-    if stim_duration_ms + stim_window_after_off_ms < stim_hold_ms:
+    if stim_off_ms - fix_off_ms < stim_hold_ms:
         raise ValueError(
-            "Stim Duration + Stim Window After Stim Off must be at least "
-            "Stim Hold Time."
+            "Stim Off - Fixation Point Off must be at least Stim Hold Time, "
+            "otherwise the second-stage hold cannot be completed."
         )
 
     positive_fields = [
         "Wait Time (s)",
         "Fixation Acquire Time (ms)",
-        "Fixation Duration Min (ms)",
-        "Fixation Duration Max (ms)",
         "Fixation Point Radius (deg)",
         "Fix Window Radius (deg)",
         "Stim Window Radius (deg)",
@@ -338,17 +262,10 @@ class SaccadeTask:
         self.arduino = ArduinoController()
         self.behavior_log = []
 
-        task_log_path = os.path.join(save_dir, self._task_log_filename())
-        self.trial_logger = TrialCsvLogger(
-            task_log_path,
-            fieldnames=self._trial_log_fields(),
+        task_log_path = os.path.join(
+            save_dir, f"Saccade_task_log_{session_timestamp}.csv"
         )
-
-    def _task_log_filename(self):
-        return f"Saccade_task_log_{self.session_timestamp}.csv"
-
-    def _trial_log_fields(self):
-        return TRIAL_LOG_FIELDS
+        self.trial_logger = TrialCsvLogger(task_log_path)
 
     def now(self):
         return time.perf_counter() - self.session_t0
@@ -367,18 +284,14 @@ class SaccadeTask:
         )
         self.fix_radius_deg = float(params["Fix Window Radius (deg)"])
 
-        self.fix_duration_min_s = (
-            float(params["Fixation Duration Min (ms)"]) / 1000.0
+        self.stim_on_s = (
+            float(params["Stim On After Fixation Start (ms)"]) / 1000.0
         )
-        self.fix_duration_max_s = (
-            float(params["Fixation Duration Max (ms)"]) / 1000.0
+        self.fix_off_s = (
+            float(params["Fixation Point Off After Fixation Start (ms)"]) / 1000.0
         )
-        self.gap_duration_s = float(params["Gap Duration (ms)"]) / 1000.0
-        self.stim_duration_s = (
-            float(params["Stim Duration (ms)"]) / 1000.0
-        )
-        self.stim_window_after_off_s = (
-            float(params["Stim Window After Stim Off (ms)"]) / 1000.0
+        self.stim_off_s = (
+            float(params["Stim Off After Fixation Start (ms)"]) / 1000.0
         )
         self.stim_hold_s = float(params["Stim Hold Time (ms)"]) / 1000.0
 
@@ -397,45 +310,40 @@ class SaccadeTask:
         self.viewing_distance_cm = float(params["Viewing Distance (cm)"])
         self.monitor_width_cm = float(params["Subject Monitor Width (cm)"])
         self.monitor_height_cm = float(params["Subject Monitor Height (cm)"])
+        screen_width_px, screen_height_px = self.win_sub.size
+
+        def to_x_pixels(angle_deg):
+            return visual_angle_to_pixels(
+                angle_deg,
+                self.viewing_distance_cm,
+                self.monitor_width_cm,
+                screen_width_px,
+            )
+
+        def to_y_pixels(angle_deg):
+            return visual_angle_to_pixels(
+                angle_deg,
+                self.viewing_distance_cm,
+                self.monitor_height_cm,
+                screen_height_px,
+            )
 
         # Eye-tracker samples and both PsychoPy windows remain in pixels
         # internally; only experiment-facing parameters are specified in deg.
-        self.fix_x_px = self._to_x_pixels(self.fix_x_deg)
-        self.fix_y_px = self._to_y_pixels(self.fix_y_deg)
-        self.fix_point_radius_px = self._to_x_pixels(
-            self.fix_point_radius_deg
-        )
-        self.fix_radius_px = self._to_x_pixels(self.fix_radius_deg)
-        self.stim_radius_px = self._to_x_pixels(self.stim_radius_deg)
-        self.stim_x_px = self._to_x_pixels(self.stim_x_deg)
-        self.stim_y_px = self._to_y_pixels(self.stim_y_deg)
-        self.stim_major_axis_px = self._to_x_pixels(
-            self.stim_major_axis_deg
-        )
-        self.stim_minor_axis_px = self._to_y_pixels(
-            self.stim_minor_axis_deg
-        )
+        self.fix_x_px = to_x_pixels(self.fix_x_deg)
+        self.fix_y_px = to_y_pixels(self.fix_y_deg)
+        self.fix_point_radius_px = to_x_pixels(self.fix_point_radius_deg)
+        self.fix_radius_px = to_x_pixels(self.fix_radius_deg)
+        self.stim_radius_px = to_x_pixels(self.stim_radius_deg)
+        self.stim_x_px = to_x_pixels(self.stim_x_deg)
+        self.stim_y_px = to_y_pixels(self.stim_y_deg)
+        self.stim_major_axis_px = to_x_pixels(self.stim_major_axis_deg)
+        self.stim_minor_axis_px = to_y_pixels(self.stim_minor_axis_deg)
 
         self.reward_len_s = float(params["Reward Length (s)"])
         self.iti_s = float(params["ITI (s)"])
         self.timeout_s = float(params["Timeout (s)"])
         self._build_visuals()
-
-    def _to_x_pixels(self, angle_deg):
-        return visual_angle_to_pixels(
-            angle_deg,
-            self.viewing_distance_cm,
-            self.monitor_width_cm,
-            self.win_sub.size[0],
-        )
-
-    def _to_y_pixels(self, angle_deg):
-        return visual_angle_to_pixels(
-            angle_deg,
-            self.viewing_distance_cm,
-            self.monitor_height_cm,
-            self.win_sub.size[1],
-        )
 
     def _build_visuals(self):
         self.fix_sub = visual.Circle(
@@ -525,27 +433,14 @@ class SaccadeTask:
             gaze["x"] - center_x, gaze["y"] - center_y
         ) <= radius
 
-    def _present_frame(
-        self,
-        fix_visible,
-        stim_visible,
-        stim_window_active=None,
-        fix_window_active=None,
-    ):
-        if stim_window_active is None:
-            stim_window_active = stim_visible
-        if fix_window_active is None:
-            fix_window_active = fix_visible
-
+    def _present_frame(self, fix_visible, stim_visible):
         if fix_visible:
             self.fix_sub.draw()
             self.fix_ctl.draw()
-        if fix_window_active:
             self.fix_window_ctl.draw()
         if stim_visible:
             self.stim_sub.draw()
             self.stim_ctl.draw()
-        if stim_window_active:
             self.stim_window_ctl.draw()
 
         gaze = self.gaze_renderer.update_and_draw()
@@ -559,10 +454,9 @@ class SaccadeTask:
             self._schedule_flip_time(trial_data, "Time_FixationPointOff")
         if trial_data["Time_StimOn"] is not None:
             self._schedule_flip_time(trial_data, "Time_StimOff")
-            self._schedule_flip_time(trial_data, "Time_StimWindowEnd")
         self._present_frame(False, False)
 
-    def _new_trial_data(self, trial_number, fixation_duration_s):
+    def _new_trial_data(self, trial_number):
         return {
             "Trial": trial_number,
             "Status": None,
@@ -576,7 +470,6 @@ class SaccadeTask:
             ),
             "Time_StimWindowEnter": None,
             "Time_StimOff": None,
-            "Time_StimWindowEnd": None,
             "Time_Reward": None,
             "Time_End": None,
             "Subject_ID": self.subject_id,
@@ -600,14 +493,10 @@ class SaccadeTask:
             "Monitor_Width_cm": self.monitor_width_cm,
             "Monitor_Height_cm": self.monitor_height_cm,
             "Fixation_Acquire_Time_ms": self.fix_acquire_s * 1000.0,
-            "Planned_Fixation_Duration_ms": fixation_duration_s * 1000.0,
-            "Fixation_Duration_Min_ms": self.fix_duration_min_s * 1000.0,
-            "Fixation_Duration_Max_ms": self.fix_duration_max_s * 1000.0,
-            "Gap_Duration_ms": self.gap_duration_s * 1000.0,
-            "Stim_Duration_ms": self.stim_duration_s * 1000.0,
-            "Stim_Window_After_Stim_Off_ms": (
-                self.stim_window_after_off_s * 1000.0
-            ),
+            "Stim_On_After_Fixation_Start_ms": self.stim_on_s * 1000.0,
+            "Fixation_Point_Off_After_Fixation_Start_ms": self.fix_off_s
+            * 1000.0,
+            "Stim_Off_After_Fixation_Start_ms": self.stim_off_s * 1000.0,
             "Stim_Hold_Time_ms": self.stim_hold_s * 1000.0,
         }
 
@@ -634,128 +523,73 @@ class SaccadeTask:
 
         return None, pause_requested
 
-    def _hold_central_fixation(
-        self, trial_data, fixation_start, fixation_duration_s
-    ):
+    def _hold_central_fixation(self, trial_data, fixation_start):
         pause_requested = False
 
         while True:
             elapsed = self.now() - fixation_start
-            if elapsed >= fixation_duration_s:
-                self._schedule_flip_time(trial_data, "Time_FixationPointOff")
-                gaze, requested = self._present_frame(
-                    False,
-                    False,
-                    False,
-                    True,
-                )
-                pause_requested = pause_requested or requested
-                if not self._in_window(
-                    gaze, self.fix_x_px, self.fix_y_px, self.fix_radius_px
-                ):
-                    return "Break_1", pause_requested
-                return "Gap", pause_requested
+            stim_visible = elapsed >= self.stim_on_s
 
-            gaze, requested = self._present_frame(True, False)
+            if stim_visible:
+                self._schedule_flip_time(trial_data, "Time_StimOn")
+
+            if elapsed >= self.fix_off_s:
+                self._schedule_flip_time(trial_data, "Time_FixationPointOff")
+                _, requested = self._present_frame(False, True)
+                pause_requested = pause_requested or requested
+                return "Stage_2", pause_requested
+
+            gaze, requested = self._present_frame(True, stim_visible)
             pause_requested = pause_requested or requested
             if not self._in_window(
                 gaze, self.fix_x_px, self.fix_y_px, self.fix_radius_px
             ):
                 return "Break_1", pause_requested
 
-    def _run_gap(self, trial_data):
+    def _finish_stimulus_at_scheduled_time(self, trial_data, fixation_start):
         pause_requested = False
-        fixation_off = trial_data["Time_FixationPointOff"]
-
-        while self.now() - fixation_off < self.gap_duration_s:
-            gaze, requested = self._present_frame(
-                False,
-                False,
-                False,
-                True,
-            )
+        while self.now() - fixation_start < self.stim_off_s:
+            _, requested = self._present_frame(False, True)
             pause_requested = pause_requested or requested
-            if not self._in_window(
-                gaze, self.fix_x_px, self.fix_y_px, self.fix_radius_px
-            ):
-                return "Break_Gap", pause_requested
+        self._schedule_flip_time(trial_data, "Time_StimOff")
+        _, requested = self._present_frame(False, False)
+        return pause_requested or requested
 
-        return "Response", pause_requested
-
-    def _run_response(self, trial_data):
-        target_hold_start = None
-        ever_entered = False
-        success_locked = False
+    def _run_stage_two(self, trial_data, fixation_start):
+        target_enter = None
         pause_requested = False
 
-        while True:
-            stim_on = trial_data["Time_StimOn"]
-            if stim_on is None:
-                self._schedule_flip_time(trial_data, "Time_StimOn")
-                _, requested = self._present_frame(
-                    False,
-                    True,
-                    True,
-                    False,
-                )
-                pause_requested = pause_requested or requested
-                continue
-
-            elapsed = self.now() - stim_on
-            response_duration_s = (
-                self.stim_duration_s + self.stim_window_after_off_s
-            )
-            if elapsed >= response_duration_s:
-                if ever_entered:
-                    return "Break_2", pause_requested
-                return "nofix_2", pause_requested
-
-            stim_visible = elapsed < self.stim_duration_s
-            if (
-                not stim_visible
-                and trial_data["Time_StimOff"] is None
-            ):
-                self._schedule_flip_time(trial_data, "Time_StimOff")
-
-            gaze, requested = self._present_frame(
-                False,
-                stim_visible,
-                True,
-                False,
-            )
+        while self.now() - fixation_start < self.stim_off_s:
+            gaze, requested = self._present_frame(False, True)
             pause_requested = pause_requested or requested
             detected_at = self.now()
 
             if self._in_window(
                 gaze, self.stim_x_px, self.stim_y_px, self.stim_radius_px
             ):
-                if not ever_entered:
-                    ever_entered = True
-                    trial_data["Time_StimWindowEnter"] = detected_at
-                if target_hold_start is None:
-                    target_hold_start = detected_at
-                elif detected_at - target_hold_start >= self.stim_hold_s:
-                    success_locked = True
-            elif not success_locked:
-                target_hold_start = None
+                if target_enter is None:
+                    target_enter = detected_at
+                    trial_data["Time_StimWindowEnter"] = target_enter
+                elif detected_at - target_enter >= self.stim_hold_s:
+                    pause_requested = (
+                        self._finish_stimulus_at_scheduled_time(
+                            trial_data, fixation_start
+                        )
+                        or pause_requested
+                    )
+                    return "Success", pause_requested
+            elif target_enter is not None:
+                return "Break_2", pause_requested
 
-            # Preserve the configured stimulus duration even when the target
-            # hold is completed early. Reward follows the scheduled offset.
-            if (
-                success_locked
-                and detected_at - stim_on >= self.stim_duration_s
-            ):
-                return "Success", pause_requested
+        self._schedule_flip_time(trial_data, "Time_StimOff")
+        _, requested = self._present_frame(False, False)
+        pause_requested = pause_requested or requested
+        if target_enter is None:
+            return "nofix_2", pause_requested
+        return "Break_2", pause_requested
 
     def _run_one_trial(self, trial_number):
-        fixation_duration_s = random.uniform(
-            self.fix_duration_min_s,
-            self.fix_duration_max_s,
-        )
-        trial_data = self._new_trial_data(
-            trial_number,
-            fixation_duration_s,
-        )
+        trial_data = self._new_trial_data(trial_number)
         event.clearEvents()
         self.gaze_renderer.reset_trail()
 
@@ -771,47 +605,31 @@ class SaccadeTask:
             status = "nofix_1"
         else:
             status, requested = self._hold_central_fixation(
-                trial_data,
-                fixation_start,
-                fixation_duration_s,
+                trial_data, fixation_start
             )
             pause_requested = pause_requested or requested
-            if status == "Gap":
-                status, requested = self._run_gap(trial_data)
-                pause_requested = pause_requested or requested
-            if status == "Response":
-                status, requested = self._run_response(trial_data)
+            if status == "Stage_2":
+                status, requested = self._run_stage_two(
+                    trial_data, fixation_start
+                )
                 pause_requested = pause_requested or requested
 
-        # Every outcome ends the visual trial immediately. This also records
-        # the actual stimulus-off flip before reward delivery or timeout.
-        self._black_out(trial_data)
-
-        if self._trial_should_reward(status, trial_data):
+        if status == "Success":
             self.arduino.trial_success()
             trial_data["Time_Reward"] = self.now()
             self.arduino.reward(int(self.reward_len_s * 1000.0))
-        elif status in ("Break_1", "Break_Gap", "Break_2"):
+        elif status in ("Break_1", "Break_2"):
+            self._black_out(trial_data)
             self.arduino.trial_break()
             core.wait(self.timeout_s)
         else:
+            self._black_out(trial_data)
             self.arduino.trial_nofix()
 
         self.arduino.trial_end()
-        trial_data["Status"] = self._trial_status_for_log(
-            status,
-            trial_data,
-        )
+        trial_data["Status"] = status
         trial_data["Time_End"] = self.now()
         return trial_data, pause_requested
-
-    def _trial_should_reward(self, status, trial_data):
-        """Return whether the completed trial should deliver reward."""
-        return status == "Success"
-
-    def _trial_status_for_log(self, status, trial_data):
-        """Return the status string written to the behavior log."""
-        return status
 
     def _write_trial(self, trial_data):
         csv_row = trial_data.copy()
@@ -862,22 +680,9 @@ class SaccadeTask:
 
             if trial_data["Status"] == "Success":
                 success_count += 1
-            recent_trials = self.behavior_log[-40:]
-            recent_success_count = sum(
-                trial["Status"] == "Success" for trial in recent_trials
-            )
             print(
                 f"Result: {trial_data['Status']} "
                 f"(success {success_count}/{trial_number})"
-            )
-            print(
-                f"总体成功率: {success_count / trial_number:.1%} "
-                f"({success_count}/{trial_number})"
-            )
-            print(
-                f"最近40个 trial 的成功率: "
-                f"{recent_success_count / len(recent_trials):.1%} "
-                f"({recent_success_count}/{len(recent_trials)})"
             )
             trial_number += 1
 
@@ -953,10 +758,7 @@ def main():
         )
 
         task_manager = FineVision_Notebook(
-            task_name="SaccadeTask",
-            default_params=DEFAULT_PARAMS,
-            parameter_groups=SACCADE_PARAMETER_GROUPS,
-            parameter_validator=_validate_params,
+            task_name="SaccadeTask", default_params=DEFAULT_PARAMS
         )
         task = SaccadeTask(
             win_subject,

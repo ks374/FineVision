@@ -1,0 +1,20 @@
+{
+    "parameters": {
+        "Subject ID": "Monkey_H18",
+        "Wait Time (s)": 4.0,
+        "Fixation Acquire Time (ms)": 150,
+        "Fix Window Radius (pix)": 75,
+        "Bar On After Fixation Start (ms)": 500,
+        "Bar Motion Duration (s)": 1.0,
+        "Bar Width for 4deg (deg)": 0.04,
+        "Bar Width for 20deg (deg)": 0.19,
+        "Bar Opacity (0-1)": 1.0,
+        "Viewing Distance (cm)": 55.0,
+        "Subject Monitor Width (cm)": 54.0,
+        "Subject Monitor Height (cm)": 30.0,
+        "Reward Length (s)": 0.5,
+        "ITI (s)": 5.0,
+        "Timeout (s)": 2.5,
+        "Random Seed (0=random)": 51
+    }
+}

@@ -1,15 +1,384 @@
-from psychopy import gui, core
+from psychopy import core, gui
 from Json_manager import read_json, update_json
 import os
+import tkinter as tk
+from tkinter import messagebox, ttk
+
+
+def _coerce_saved_value(default_value, saved_value):
+    """Keep the parameter's declared UI type when restoring JSON values."""
+    if isinstance(default_value, bool):
+        return bool(saved_value)
+    if isinstance(default_value, float) and isinstance(
+        saved_value,
+        (int, float),
+    ):
+        return float(saved_value)
+    if (
+        isinstance(default_value, int)
+        and isinstance(saved_value, (int, float))
+        and float(saved_value).is_integer()
+    ):
+        return int(saved_value)
+    return saved_value
+
+
+class _ScrollableParameterDialog:
+    """Modal parameter editor with categorized, scrollable tabs."""
+
+    def __init__(
+        self,
+        parameters,
+        title,
+        parameter_groups=None,
+        parameter_validator=None,
+        disabled_parameters=None,
+        parameter_summary_provider=None,
+    ):
+        self.parameters = parameters
+        self.parameter_validator = parameter_validator
+        self.disabled_parameters = set(disabled_parameters or ())
+        self.parameter_summary_provider = parameter_summary_provider
+        self.result = None
+        self.variables = {}
+        self.widgets = {}
+        self.widget_locations = {}
+        self.forms = []
+        self.tab_canvases = {}
+
+        self.root = tk.Tk()
+        self.root.title(title)
+        self.root.minsize(620, 420)
+        self.root.protocol("WM_DELETE_WINDOW", self._cancel)
+
+        container = ttk.Frame(self.root, padding=(12, 12, 12, 8))
+        container.grid(row=0, column=0, sticky="nsew")
+        self.root.rowconfigure(0, weight=1)
+        self.root.columnconfigure(0, weight=1)
+        container.rowconfigure(0, weight=1)
+        container.columnconfigure(0, weight=1)
+
+        self.notebook = ttk.Notebook(container)
+        self.notebook.grid(row=0, column=0, sticky="nsew")
+
+        for group_name, parameter_names in self._normalize_groups(
+            parameter_groups
+        ):
+            self._add_parameter_tab(group_name, parameter_names)
+
+        footer_row = 1
+        self.summary_variable = None
+        if self.parameter_summary_provider is not None:
+            status_frame = ttk.Frame(container, padding=(0, 8, 0, 0))
+            status_frame.grid(row=1, column=0, sticky="ew")
+            ttk.Separator(
+                status_frame,
+                orient="horizontal",
+            ).pack(fill="x", pady=(0, 7))
+            self.summary_variable = tk.StringVar(value="Planned trials: —")
+            ttk.Label(
+                status_frame,
+                textvariable=self.summary_variable,
+                anchor="w",
+            ).pack(fill="x")
+            footer_row = 2
+
+        footer = ttk.Frame(container, padding=(0, 10, 0, 0))
+        footer.grid(row=footer_row, column=0, sticky="e")
+        ttk.Button(
+            footer,
+            text="Cancel",
+            command=self._cancel,
+            width=12,
+        ).pack(side="right", padx=(8, 0))
+        ttk.Button(
+            footer,
+            text="OK",
+            command=self._accept,
+            width=12,
+        ).pack(side="right")
+
+        self.root.bind("<Return>", lambda event: self._accept())
+        self.root.bind("<Escape>", lambda event: self._cancel())
+        self.root.bind_all("<MouseWheel>", self._on_mousewheel)
+        self.root.bind_all("<Button-4>", self._on_mousewheel)
+        self.root.bind_all("<Button-5>", self._on_mousewheel)
+
+        if self.parameter_summary_provider is not None:
+            for variable in self.variables.values():
+                variable.trace_add("write", self._update_summary)
+            self._update_summary()
+
+        self._set_initial_geometry()
+
+    def _normalize_groups(self, parameter_groups):
+        if not parameter_groups:
+            return [("Parameters", list(self.parameters))]
+
+        groups = []
+        assigned = set()
+        items = (
+            parameter_groups.items()
+            if hasattr(parameter_groups, "items")
+            else parameter_groups
+        )
+        for group_name, requested_names in items:
+            names = [
+                name
+                for name in requested_names
+                if name in self.parameters and name not in assigned
+            ]
+            if names:
+                groups.append((str(group_name), names))
+                assigned.update(names)
+
+        remaining = [
+            name for name in self.parameters if name not in assigned
+        ]
+        if remaining:
+            groups.append(("Other / 其他", remaining))
+        return groups
+
+    def _add_parameter_tab(self, group_name, parameter_names):
+        tab = ttk.Frame(self.notebook, padding=(6, 6, 6, 4))
+        tab.rowconfigure(0, weight=1)
+        tab.columnconfigure(0, weight=1)
+        self.notebook.add(tab, text=group_name)
+
+        canvas = tk.Canvas(tab, borderwidth=0, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(
+            tab,
+            orient="vertical",
+            command=canvas.yview,
+        )
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.grid(row=0, column=0, sticky="nsew")
+        scrollbar.grid(row=0, column=1, sticky="ns", padx=(8, 0))
+
+        form = ttk.Frame(canvas, padding=(8, 6, 12, 10))
+        form.columnconfigure(1, weight=1)
+        canvas_window = canvas.create_window(
+            (0, 0),
+            window=form,
+            anchor="nw",
+        )
+        form.bind(
+            "<Configure>",
+            lambda _event, current_canvas=canvas: current_canvas.configure(
+                scrollregion=current_canvas.bbox("all")
+            ),
+        )
+        canvas.bind(
+            "<Configure>",
+            lambda event, current_canvas=canvas, window_id=canvas_window: (
+                current_canvas.itemconfigure(window_id, width=event.width)
+            ),
+        )
+
+        tab_id = str(tab)
+        self.tab_canvases[tab_id] = canvas
+        self.forms.append(form)
+
+        for row, name in enumerate(parameter_names):
+            value = self.parameters[name]
+            label = ttk.Label(form, text=name, anchor="w")
+            label.grid(
+                row=row,
+                column=0,
+                sticky="w",
+                padx=(0, 22),
+                pady=7,
+            )
+
+            if isinstance(value, list):
+                choices = list(value)
+                variable = tk.StringVar(
+                    value=str(choices[0]) if choices else ""
+                )
+                widget = ttk.Combobox(
+                    form,
+                    textvariable=variable,
+                    values=[str(choice) for choice in choices],
+                    state="readonly",
+                    width=28,
+                )
+            elif isinstance(value, bool):
+                variable = tk.BooleanVar(value=value)
+                widget = ttk.Checkbutton(form, variable=variable)
+            else:
+                variable = tk.StringVar(value=str(value))
+                widget = ttk.Entry(
+                    form,
+                    textvariable=variable,
+                    width=32,
+                )
+
+            widget.grid(row=row, column=1, sticky="ew", pady=7)
+            if name in self.disabled_parameters:
+                label.state(["disabled"])
+                widget.state(["disabled"])
+            self.variables[name] = variable
+            self.widgets[name] = widget
+            self.widget_locations[name] = (tab_id, canvas, form)
+
+    def _set_initial_geometry(self):
+        self.root.update_idletasks()
+        requested_width = max(
+            (form.winfo_reqwidth() for form in self.forms),
+            default=560,
+        ) + 80
+        requested_height = max(
+            (form.winfo_reqheight() for form in self.forms),
+            default=340,
+        ) + 135
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        width = min(max(requested_width, 680), int(screen_width * 0.85))
+        height = min(max(requested_height, 480), int(screen_height * 0.82))
+        x_pos = max(0, (screen_width - width) // 2)
+        y_pos = max(0, (screen_height - height) // 2)
+        self.root.geometry(f"{width}x{height}+{x_pos}+{y_pos}")
+
+    def _on_mousewheel(self, event):
+        if getattr(event, "num", None) == 4:
+            steps = -1
+        elif getattr(event, "num", None) == 5:
+            steps = 1
+        else:
+            delta = getattr(event, "delta", 0)
+            if delta == 0:
+                return
+            steps = -int(delta / 120)
+            if steps == 0:
+                steps = -1 if delta > 0 else 1
+        selected_tab = self.notebook.select()
+        canvas = self.tab_canvases.get(selected_tab)
+        if canvas is not None:
+            canvas.yview_scroll(steps, "units")
+
+    @staticmethod
+    def _convert_value(raw_value, original_value):
+        if isinstance(original_value, list):
+            for choice in original_value:
+                if str(choice) == raw_value:
+                    return choice
+            return raw_value
+        if isinstance(original_value, bool):
+            return bool(raw_value)
+        if isinstance(original_value, int):
+            return int(raw_value.strip())
+        if isinstance(original_value, float):
+            return float(raw_value.strip())
+        if isinstance(original_value, str):
+            return raw_value
+        return type(original_value)(raw_value)
+
+    def _update_summary(self, *_args):
+        if self.parameter_summary_provider is None:
+            return
+
+        updated = {}
+        try:
+            for name, original_value in self.parameters.items():
+                updated[name] = self._convert_value(
+                    self.variables[name].get(),
+                    original_value,
+                )
+            summary = self.parameter_summary_provider(updated)
+        except (KeyError, TypeError, ValueError, ArithmeticError):
+            summary = "Planned trials: — (enter a complete valid range)"
+        self.summary_variable.set(str(summary))
+
+    def _accept(self):
+        updated = {}
+        for name, original_value in self.parameters.items():
+            raw_value = self.variables[name].get()
+            try:
+                updated[name] = self._convert_value(
+                    raw_value,
+                    original_value,
+                )
+            except (TypeError, ValueError):
+                widget = self.widgets[name]
+                tab_id, canvas, form = self.widget_locations[name]
+                self.notebook.select(tab_id)
+                widget.focus_set()
+                self.root.update_idletasks()
+                form_height = max(1, form.winfo_height())
+                canvas.yview_moveto(
+                    max(0.0, widget.winfo_y() / form_height - 0.15)
+                )
+                messagebox.showerror(
+                    "Invalid parameter",
+                    f"Please enter a valid value for:\n{name}",
+                    parent=self.root,
+                )
+                return
+
+        if self.parameter_validator is not None:
+            try:
+                validation_message = self.parameter_validator(updated)
+            except ValueError as error:
+                messagebox.showerror(
+                    "Invalid parameter combination",
+                    str(error),
+                    parent=self.root,
+                )
+                return
+            if validation_message and not messagebox.askokcancel(
+                "Confirm parameter plan",
+                str(validation_message),
+                parent=self.root,
+            ):
+                return
+
+        self.result = updated
+        self._close()
+
+    def _cancel(self):
+        self.result = None
+        self._close()
+
+    def _close(self):
+        self.root.unbind_all("<MouseWheel>")
+        self.root.unbind_all("<Button-4>")
+        self.root.unbind_all("<Button-5>")
+        self.root.destroy()
+
+    def show(self):
+        self.root.lift()
+        self.root.focus_force()
+        first_widget = next(
+            (
+                widget
+                for name, widget in self.widgets.items()
+                if name not in self.disabled_parameters
+            ),
+            None,
+        )
+        if first_widget is not None:
+            first_widget.focus_set()
+        self.root.mainloop()
+        return self.result
 
 class FineVision_Notebook:
-    def __init__(self,task_name="FinVision",default_params=None):
+    def __init__(
+        self,
+        task_name="FinVision",
+        default_params=None,
+        parameter_groups=None,
+        parameter_validator=None,
+        parameter_summary_provider=None,
+    ):
         """
         :param task_name: 任务名称，用于生成独立的 JSON 参数文件
         :param default_params: 外部传入的字典。如果不传，则使用内置默认值。
         """
         self.task_name = task_name
         self.param_file = f"params_{self.task_name}.json"
+        self.parameter_groups = parameter_groups
+        self.parameter_validator = parameter_validator
+        self.parameter_summary_provider = parameter_summary_provider
 
         if default_params is None:
             default_params = {
@@ -33,12 +402,17 @@ class FineVision_Notebook:
                         self.exp_params[key].insert(0, saved_value)
                 else:
                     # 普通的数字或字符串，直接用上次保存的值覆盖
-                    self.exp_params[key] = saved_value
+                    self.exp_params[key] = _coerce_saved_value(
+                        self.exp_params[key],
+                        saved_value,
+                    )
             else:
+                print(f"[Parameters] Ignoring obsolete saved field: {key}")
+                continue
                 # 如果 JSON 里有，但当前默认字典里没有的新增参数，也一起合并进来
                 self.exp_params[key] = saved_value
 
-    def prompt_for_parameters(self):
+    def _prompt_for_parameters_legacy(self):
         """弹出一个 UI 窗口让研究人员修改参数"""
         
         print(f"等待输入 {self.task_name} 任务的参数...")
@@ -63,6 +437,40 @@ class FineVision_Notebook:
         #for key, value in self.exp_params.items():
         #    print(f"{key}: {value}")
             
+        return True
+
+    def prompt_for_parameters(
+        self,
+        disabled_parameters=None,
+        parameter_validator=None,
+        title=None,
+    ):
+        """Show a scrollable editor and save the confirmed parameters."""
+        print(f"Waiting for {self.task_name} task parameters...")
+
+        dialog = _ScrollableParameterDialog(
+            parameters=self.exp_params,
+            title=title or f"Experiment Parameters ({self.task_name})",
+            parameter_groups=self.parameter_groups,
+            parameter_validator=(
+                parameter_validator
+                if parameter_validator is not None
+                else self.parameter_validator
+            ),
+            disabled_parameters=disabled_parameters,
+            parameter_summary_provider=self.parameter_summary_provider,
+        )
+        updated_params = dialog.show()
+
+        if updated_params is None:
+            print("Parameter editing cancelled; stopping the experiment.")
+            core.quit()
+            return False
+
+        self.exp_params.clear()
+        self.exp_params.update(updated_params)
+        update_json(self.param_file, "parameters", self.exp_params)
+        print("\n=== Experiment parameters confirmed and saved ===")
         return True
 
 '''
