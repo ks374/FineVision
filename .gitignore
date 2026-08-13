@@ -8,6 +8,7 @@ venv/
 # Experiment output (never source code)
 experiment_logs/
 *.edf
+*.asc
 task_data_*.json
 quick_calib_data_*.json
 qy_calibration_*.json

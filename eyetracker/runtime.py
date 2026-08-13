@@ -65,6 +65,7 @@ def create_tracker_runtime(
     calibration_file = settings.get(
         "calibration_file", "eyelink_default_setting.json"
     )
+    active_eye = settings.get("active_eye", "right")
     if not os.path.isabs(calibration_file):
         calibration_file = os.path.join(
             os.path.dirname(settings_path), calibration_file
@@ -82,6 +83,7 @@ def create_tracker_runtime(
         sample_rate=settings.get("sample_rate_hz", 1000),
         sample_source=settings.get("sample_source", "href"),
         calibration_file=calibration_file,
+        active_eye=active_eye,
         session_t0=session_t0,
     )
     backend.send_event(

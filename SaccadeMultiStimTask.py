@@ -17,6 +17,7 @@ from types import SimpleNamespace
 from psychopy import event, visual
 
 from EyeDataLogger import GazeCsvWriter, STOP_TOKEN
+from EyeLinkInSessionCalibration import run_in_session_calibration
 from FineVision_Notebook import FineVision_Notebook
 from eyetracker import create_tracker_runtime
 from SaccadeTask import (
@@ -36,6 +37,8 @@ from SaccadeTask import (
 IS_SIMULATING = SACCADE_IS_SIMULATING
 MAX_VALUES_PER_RANGE = 1000
 MAX_PLANNED_TRIALS = 100000
+CONTROL_PAIR_SIZE = 2
+CONTROL_GAZE_SAMPLE_WINDOW_S = 0.100
 CALIBRATION_FILE = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     "stim_calibration_0_20.json",
@@ -44,8 +47,6 @@ CALIBRATION_EXTENSION_FILE = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     "stim_calibration_extension_to_255.json",
 )
-
-
 DEFAULT_PARAMS = {
     "Subject ID": SACCADE_DEFAULT_PARAMS["Subject ID"],
     "Wait Time (s)": SACCADE_DEFAULT_PARAMS["Wait Time (s)"],
@@ -104,7 +105,8 @@ DEFAULT_PARAMS = {
     "Stim Intensity Level Min": 1,
     "Stim Intensity Level Max": 20,
     "Stim Intensity Level Step": 1,
-    "Control Trial Proportion (0-1)": 0.10,
+    "Control Groups": 1,
+    "Control Gaze Error Threshold (deg)": 1.5,
     "Background Gray Level (0-182)": 5,
     "Repeats Per Condition": 1,
     "Condition Order": ["Randomized", "Sequential"],
@@ -133,7 +135,8 @@ MULTISTIM_PARAMETER_GROUPS = {
         "Stim Intensity Level Min",
         "Stim Intensity Level Max",
         "Stim Intensity Level Step",
-        "Control Trial Proportion (0-1)",
+        "Control Groups",
+        "Control Gaze Error Threshold (deg)",
         "Repeats Per Condition",
         "Condition Order",
         "Random Seed",
@@ -190,7 +193,7 @@ LOCKED_DURING_SESSION_PARAMS = {
     "Stim Intensity Level Min",
     "Stim Intensity Level Max",
     "Stim Intensity Level Step",
-    "Control Trial Proportion (0-1)",
+    "Control Groups",
     "Background Gray Level (0-182)",
     "Repeats Per Condition",
     "Condition Order",
@@ -212,7 +215,12 @@ CONDITION_LOG_FIELDS = [
     "Stim_Intensity_Level",
     "Stim_Target_Luminance_cd_m2",
     "Stim_Calibration_Max_Level",
-    "Requested_Control_Proportion",
+    "Control_Groups",
+    "Control_Group_Index",
+    "Control_Position_Index",
+    "Control_Position_Count",
+    "Control_Pair_ID",
+    "Control_Pair_Member",
     "Actual_Control_Proportion",
     "Background_Gray_Level",
     "Background_Target_Luminance_cd_m2",
@@ -220,6 +228,16 @@ CONDITION_LOG_FIELDS = [
     "Background_Color_G",
     "Background_Color_B",
     "Is_Control",
+    "Control_Gaze_Sample_Count",
+    "Control_Gaze_Center_X_deg",
+    "Control_Gaze_Center_Y_deg",
+    "Control_Gaze_Error_X_deg",
+    "Control_Gaze_Error_Y_deg",
+    "Control_Gaze_Error_deg",
+    "Control_Gaze_Error_Threshold_deg",
+    "Control_Gaze_Error_Exceeded",
+    "Control_Consecutive_Exceeded",
+    "Control_Calibration_Alert",
 ]
 
 
@@ -239,7 +257,12 @@ PLAN_FIELDS = [
     "Stim_Color_G",
     "Stim_Color_B",
     "Stim_Calibration_Max_Level",
-    "Requested_Control_Proportion",
+    "Control_Groups",
+    "Control_Group_Index",
+    "Control_Position_Index",
+    "Control_Position_Count",
+    "Control_Pair_ID",
+    "Control_Pair_Member",
     "Actual_Control_Proportion",
     "Is_Control",
 ]
@@ -455,24 +478,41 @@ def _require_integer(value, field_name):
     return int(decimal_value)
 
 
-def _interleave_controls(experimental_plan, control_conditions):
-    """Spread controls through a sequential plan without changing stim order."""
-    if not control_conditions:
+def _pixels_to_visual_angle(
+    pixels,
+    viewing_distance_cm,
+    monitor_size_cm,
+    resolution_pixels,
+):
+    """Invert SaccadeTask.visual_angle_to_pixels for signed positions."""
+    size_cm = float(pixels) * float(monitor_size_cm) / int(resolution_pixels)
+    return math.degrees(
+        2.0 * math.atan(size_cm / (2.0 * float(viewing_distance_cm)))
+    )
+
+
+def _interleave_controls(experimental_plan, control_pairs):
+    """Spread adjacent control pairs without changing stimulus order."""
+    if not control_pairs:
         return list(experimental_plan)
 
-    total_count = len(experimental_plan) + len(control_conditions)
-    control_count = len(control_conditions)
+    experimental_count = len(experimental_plan)
+    pair_count = len(control_pairs)
+    insertion_points = [
+        ((pair_index + 1) * experimental_count) // (pair_count + 1)
+        for pair_index in range(pair_count)
+    ]
     plan = []
-    experimental_index = 0
-    control_index = 0
-    for slot in range(total_count):
-        controls_through_slot = ((slot + 1) * control_count) // total_count
-        if controls_through_slot > control_index:
-            plan.append(control_conditions[control_index])
-            control_index += 1
-        else:
+    pair_index = 0
+    for experimental_index in range(experimental_count + 1):
+        while (
+            pair_index < pair_count
+            and insertion_points[pair_index] == experimental_index
+        ):
+            plan.extend(control_pairs[pair_index])
+            pair_index += 1
+        if experimental_index < experimental_count:
             plan.append(experimental_plan[experimental_index])
-            experimental_index += 1
     return plan
 
 
@@ -529,7 +569,7 @@ def _build_condition_plan(
     if min(intensity_values) < 1:
         raise ValueError(
             "Formal stimulus intensity levels must start at 1 or higher. "
-            "Use Control Trial Proportion to add blank controls."
+            "Use Control Groups to add position controls."
         )
     if not 0 <= background_gray_level <= gray_max_level:
         raise ValueError(
@@ -570,17 +610,43 @@ def _build_condition_plan(
             "Condition Order must be Sequential or Randomized."
         )
     random_seed = _require_integer(params["Random Seed"], "Random Seed")
-    control_proportion = float(
-        params["Control Trial Proportion (0-1)"]
+    control_groups = _require_integer(
+        params["Control Groups"],
+        "Control Groups",
     )
+    if control_groups < 0:
+        raise ValueError("Control Groups must be zero or greater.")
+    control_error_threshold_deg = float(
+        params["Control Gaze Error Threshold (deg)"]
+    )
+    if not 0.0 < control_error_threshold_deg < 180.0:
+        raise ValueError(
+            "Control Gaze Error Threshold (deg) must be greater than zero "
+            "and less than 180."
+        )
     if (
-        not math.isfinite(control_proportion)
-        or control_proportion < 0
-        or control_proportion >= 1
+        control_groups > 0
+        and control_error_threshold_deg
+        >= float(params["Fix Window Radius (deg)"])
     ):
         raise ValueError(
-            "Control Trial Proportion must be at least 0 and less than 1."
+            "Control Gaze Error Threshold (deg) must be smaller than "
+            "Fix Window Radius (deg), otherwise a successful control can "
+            "never trigger the warning."
         )
+
+    fixation_position = (
+        float(params["Fixation Position X (deg)"]),
+        float(params["Fixation Position Y (deg)"]),
+    )
+    control_positions = [fixation_position]
+    for position in (
+        (x_deg, y_deg)
+        for x_deg in x_values
+        for y_deg in y_values
+    ):
+        if position not in control_positions:
+            control_positions.append(position)
 
     max_level_by_color = calibration["max_level_by_color"]
     intensity_values_by_color = {
@@ -618,17 +684,10 @@ def _build_condition_plan(
         )
         * repeats
     )
-    control_count = 0
-    if control_proportion > 0:
-        control_count = max(
-            1,
-            int(
-                experimental_count
-                * control_proportion
-                / (1.0 - control_proportion)
-                + 0.5
-            ),
-        )
+    control_position_count = len(control_positions)
+    control_count = (
+        control_groups * control_position_count * CONTROL_PAIR_SIZE
+    )
     planned_count = experimental_count + control_count
     if planned_count > MAX_PLANNED_TRIALS:
         raise ValueError(
@@ -639,6 +698,8 @@ def _build_condition_plan(
         return {
             "experimental_count": experimental_count,
             "control_count": control_count,
+            "control_groups": control_groups,
+            "control_position_count": control_position_count,
             "planned_count": planned_count,
             "actual_control_proportion": (
                 control_count / planned_count if planned_count else 0.0
@@ -677,6 +738,12 @@ def _build_condition_plan(
                                         "Stim_Color_B": int(rgb[2]),
                                         "Stim_Calibration_Max_Level":
                                             max_level_by_color[color_name],
+                                        "Control_Group_Index": 0,
+                                        "Control_Position_Index": 0,
+                                        "Control_Position_Count":
+                                            control_position_count,
+                                        "Control_Pair_ID": "",
+                                        "Control_Pair_Member": 0,
                                         "Is_Control": False,
                                     }
                                 )
@@ -688,49 +755,69 @@ def _build_condition_plan(
             condition["Repeat_Index"] = repeat_index
             experimental_plan.append(condition)
 
-    control_conditions = []
-    for control_index in range(control_count):
-        template_index = (
-            control_index * len(experimental_plan) // control_count
-        )
-        template = experimental_plan[template_index]
-        control_conditions.append(
-            {
-                "Stim_Pos_X_deg": template["Stim_Pos_X_deg"],
-                "Stim_Pos_Y_deg": template["Stim_Pos_Y_deg"],
-                "Stim_Major_Axis_deg": template["Stim_Major_Axis_deg"],
-                "Stim_Minor_Axis_deg": template["Stim_Minor_Axis_deg"],
-                "Stim_Orientation_deg": template["Stim_Orientation_deg"],
-                "Stim_Color_Name": "Control",
-                "Stim_Intensity_Level": 0,
-                "Stim_Target_Luminance_cd_m2": 0.0,
-                "Stim_Color_R": 0,
-                "Stim_Color_G": 0,
-                "Stim_Color_B": 0,
-                "Stim_Calibration_Max_Level": 0,
-                "Repeat_Index": 0,
-                "Is_Control": True,
-            }
-        )
+    control_pairs = []
+    template = experimental_plan[0]
+    for group_index in range(1, control_groups + 1):
+        for position_index, (x_deg, y_deg) in enumerate(
+            control_positions,
+            start=1,
+        ):
+            pair_id = f"G{group_index:03d}P{position_index:04d}"
+            pair = []
+            for pair_member in range(1, CONTROL_PAIR_SIZE + 1):
+                pair.append(
+                    {
+                        "Stim_Pos_X_deg": x_deg,
+                        "Stim_Pos_Y_deg": y_deg,
+                        "Stim_Major_Axis_deg": template[
+                            "Stim_Major_Axis_deg"
+                        ],
+                        "Stim_Minor_Axis_deg": template[
+                            "Stim_Minor_Axis_deg"
+                        ],
+                        "Stim_Orientation_deg": template[
+                            "Stim_Orientation_deg"
+                        ],
+                        "Stim_Color_Name": "Control",
+                        "Stim_Intensity_Level": 0,
+                        "Stim_Target_Luminance_cd_m2": 0.0,
+                        "Stim_Color_R": 0,
+                        "Stim_Color_G": 0,
+                        "Stim_Color_B": 0,
+                        "Stim_Calibration_Max_Level": 0,
+                        "Repeat_Index": 0,
+                        "Control_Group_Index": group_index,
+                        "Control_Position_Index": position_index,
+                        "Control_Position_Count": control_position_count,
+                        "Control_Pair_ID": pair_id,
+                        "Control_Pair_Member": pair_member,
+                        "Is_Control": True,
+                    }
+                )
+            control_pairs.append(pair)
 
     actual_control_proportion = (
         control_count / planned_count if planned_count else 0.0
     )
     if order == "Randomized":
-        plan = experimental_plan + control_conditions
+        plan_blocks = [[condition] for condition in experimental_plan]
+        plan_blocks.extend(control_pairs)
+        random.Random(random_seed).shuffle(plan_blocks)
+        plan = [
+            condition
+            for block in plan_blocks
+            for condition in block
+        ]
     else:
         plan = _interleave_controls(
             experimental_plan,
-            control_conditions,
+            control_pairs,
         )
-
-    if order == "Randomized":
-        random.Random(random_seed).shuffle(plan)
 
     for condition_index, condition in enumerate(plan, start=1):
         condition["Condition_Index"] = condition_index
         condition["Condition_ID"] = f"C{condition_index:06d}"
-        condition["Requested_Control_Proportion"] = control_proportion
+        condition["Control_Groups"] = control_groups
         condition["Actual_Control_Proportion"] = (
             actual_control_proportion
         )
@@ -779,6 +866,11 @@ def _validate_multistim_params(params):
     )
     experimental_count = len(condition_plan) - control_count
     actual_control_proportion = control_count / len(condition_plan)
+    control_groups = _require_integer(
+        params["Control Groups"],
+        "Control Groups",
+    )
+    control_position_count = condition_plan[0]["Control_Position_Count"]
     selected_colors = _parse_colors(
         params["Stim Colors (comma-separated)"]
     )
@@ -790,13 +882,15 @@ def _validate_multistim_params(params):
         "计划条件总数 / Total planned conditions: "
         f"{len(condition_plan)}\n"
         f"正式刺激 / Experimental stimuli: {experimental_count}\n"
-        f"空白对照 / Blank controls: {control_count} "
-        f"({actual_control_proportion:.2%})\n"
+        f"位置对照 / Position controls: {control_count} "
+        f"({control_groups} groups × {control_position_count} positions "
+        f"× {CONTROL_PAIR_SIZE} paired checks; "
+        f"{actual_control_proportion:.2%})\n"
         f"所选颜色最高标定等级 / Calibrated maxima: "
         f"{calibration_limits}\n\n"
-        "正式刺激失败会重复同一条件；control 不显示刺激且一定给水。\n"
-        "A failed experimental trial repeats the same condition; every "
-        "blank control is rewarded and advances.\n\n"
+        "Control 要求在指定位置完成注视，失败后重复同一位置。\n"
+        "Controls appear as adjacent pairs at each assigned position and "
+        "repeat after failure.\n\n"
         "开始本次 session / Start this session?"
     )
 
@@ -811,7 +905,10 @@ def _multistim_trial_summary(params):
         f"Planned trials: {counts['planned_count']:,} = "
         f"{counts['experimental_count']:,} stimuli + "
         f"{counts['control_count']:,} controls "
-        f"({counts['actual_control_proportion']:.2%})"
+        f"({counts['control_groups']:,} groups x "
+        f"{counts['control_position_count']:,} positions x "
+        f"{CONTROL_PAIR_SIZE} paired checks; "
+        f"{counts['actual_control_proportion']:.2%})"
     )
 
 
@@ -823,6 +920,10 @@ class SaccadeMultiStimTask(SaccadeTask):
         self.condition_plan = []
         self.current_condition = None
         self.current_attempt = 0
+        self._collect_control_gaze = False
+        self._control_gaze_samples = []
+        self._pending_control_pair = None
+        self._drift_alert_pending = None
         super().__init__(*args, **kwargs)
 
     def _task_log_filename(self):
@@ -834,6 +935,7 @@ class SaccadeMultiStimTask(SaccadeTask):
         return TRIAL_LOG_FIELDS + CONDITION_LOG_FIELDS
 
     def _send_trial_start_metadata(self, trial_data):
+        super()._send_trial_start_metadata(trial_data)
         for field in (
             "Condition_ID",
             "Is_Control",
@@ -841,6 +943,8 @@ class SaccadeMultiStimTask(SaccadeTask):
             "Stim_Intensity_Level",
             "Stim_Pos_X_deg",
             "Stim_Pos_Y_deg",
+            "Control_Pair_ID",
+            "Control_Pair_Member",
         ):
             self._send_tracker_event(
                 f"!V TRIAL_VAR {field} {trial_data[field]}"
@@ -871,14 +975,36 @@ class SaccadeMultiStimTask(SaccadeTask):
             self.task_manager = original_manager
 
         self._apply_background(params)
+        self.control_error_threshold_deg = float(
+            params["Control Gaze Error Threshold (deg)"]
+        )
         self.condition_plan = condition_plan
         self.condition_order = str(params["Condition Order"])
         self.random_seed = int(params["Random Seed"])
+        self.task_fix_x_deg = self.fix_x_deg
+        self.task_fix_y_deg = self.fix_y_deg
         self.current_condition = self.condition_plan[0]
         self.current_attempt = 0
         self._apply_condition(self.current_condition)
 
     def _validate_runtime_params(self, params):
+        control_error_threshold_deg = float(
+            params["Control Gaze Error Threshold (deg)"]
+        )
+        if not 0.0 < control_error_threshold_deg < 180.0:
+            raise ValueError(
+                "Control Gaze Error Threshold (deg) must be greater than "
+                "zero and less than 180."
+            )
+        if (
+            int(params["Control Groups"]) > 0
+            and control_error_threshold_deg
+            >= float(params["Fix Window Radius (deg)"])
+        ):
+            raise ValueError(
+                "Control Gaze Error Threshold (deg) must be smaller than "
+                "Fix Window Radius (deg)."
+            )
         reference_condition = next(
             condition
             for condition in self.condition_plan
@@ -903,6 +1029,11 @@ class SaccadeMultiStimTask(SaccadeTask):
         finally:
             self.task_manager = original_manager
         self._apply_background(self.task_manager.exp_params)
+        self.control_error_threshold_deg = float(
+            self.task_manager.exp_params[
+                "Control Gaze Error Threshold (deg)"
+            ]
+        )
 
     def _apply_background(self, params):
         self.background_gray_level = _require_integer(
@@ -920,11 +1051,18 @@ class SaccadeMultiStimTask(SaccadeTask):
             channel / 127.5 - 1.0
             for channel in self.background_rgb_255
         ]
+        self.background_psychopy_color = tuple(psychopy_color)
         self.win_sub.color = psychopy_color
         self.win_ctl.color = psychopy_color
 
     def _apply_condition(self, condition):
         self.current_condition = condition
+        if condition["Is_Control"]:
+            self.fix_x_deg = float(condition["Stim_Pos_X_deg"])
+            self.fix_y_deg = float(condition["Stim_Pos_Y_deg"])
+        else:
+            self.fix_x_deg = self.task_fix_x_deg
+            self.fix_y_deg = self.task_fix_y_deg
         self.stim_x_deg = float(condition["Stim_Pos_X_deg"])
         self.stim_y_deg = float(condition["Stim_Pos_Y_deg"])
         self.stim_major_axis_deg = float(
@@ -942,6 +1080,8 @@ class SaccadeMultiStimTask(SaccadeTask):
             int(condition["Stim_Color_B"]),
         )
 
+        self.fix_x_px = self._to_x_pixels(self.fix_x_deg)
+        self.fix_y_px = self._to_y_pixels(self.fix_y_deg)
         self.stim_x_px = self._to_x_pixels(self.stim_x_deg)
         self.stim_y_px = self._to_y_pixels(self.stim_y_deg)
         self.stim_major_axis_px = self._to_x_pixels(
@@ -976,8 +1116,19 @@ class SaccadeMultiStimTask(SaccadeTask):
                 "Stim_Calibration_Max_Level": condition[
                     "Stim_Calibration_Max_Level"
                 ],
-                "Requested_Control_Proportion": condition[
-                    "Requested_Control_Proportion"
+                "Control_Groups": condition["Control_Groups"],
+                "Control_Group_Index": condition[
+                    "Control_Group_Index"
+                ],
+                "Control_Position_Index": condition[
+                    "Control_Position_Index"
+                ],
+                "Control_Position_Count": condition[
+                    "Control_Position_Count"
+                ],
+                "Control_Pair_ID": condition["Control_Pair_ID"],
+                "Control_Pair_Member": condition[
+                    "Control_Pair_Member"
                 ],
                 "Actual_Control_Proportion": condition[
                     "Actual_Control_Proportion"
@@ -989,54 +1140,215 @@ class SaccadeMultiStimTask(SaccadeTask):
                 "Background_Color_G": self.background_rgb_255[1],
                 "Background_Color_B": self.background_rgb_255[2],
                 "Is_Control": condition["Is_Control"],
+                "Control_Gaze_Sample_Count": None,
+                "Control_Gaze_Center_X_deg": None,
+                "Control_Gaze_Center_Y_deg": None,
+                "Control_Gaze_Error_X_deg": None,
+                "Control_Gaze_Error_Y_deg": None,
+                "Control_Gaze_Error_deg": None,
+                "Control_Gaze_Error_Threshold_deg": (
+                    self.control_error_threshold_deg
+                ),
+                "Control_Gaze_Error_Exceeded": None,
+                "Control_Consecutive_Exceeded": False,
+                "Control_Calibration_Alert": False,
             }
         )
         return trial_data
 
-    def _run_response(self, trial_data):
-        if not self.current_condition["Is_Control"]:
-            return super()._run_response(trial_data)
-
-        pause_requested = False
-        while True:
-            stim_on = trial_data["Time_StimOn"]
-            if stim_on is None:
-                self._schedule_flip_time(trial_data, "Time_StimOn")
-                _, requested = self._present_frame(
-                    False,
-                    False,
-                    False,
-                    False,
-                )
-                pause_requested = pause_requested or requested
-                continue
-
-            if self.now() - stim_on >= self.stim_duration_s:
-                return "Control_Blank", pause_requested
-
-            _, requested = self._present_frame(
-                False,
-                False,
-                False,
-                False,
+    def _present_frame(self, *args, **kwargs):
+        gaze, pause_requested = super()._present_frame(*args, **kwargs)
+        if self._collect_control_gaze and gaze.get("valid"):
+            self._control_gaze_samples.append(
+                (self.now(), float(gaze["x"]), float(gaze["y"]))
             )
-            pause_requested = pause_requested or requested
+        return gaze, pause_requested
+
+    def _hold_central_fixation(
+        self,
+        trial_data,
+        fixation_start,
+        fixation_duration_s,
+    ):
+        collect = bool(self.current_condition["Is_Control"])
+        if collect:
+            self._control_gaze_samples = []
+            self._collect_control_gaze = True
+        try:
+            return super()._hold_central_fixation(
+                trial_data,
+                fixation_start,
+                fixation_duration_s,
+            )
+        finally:
+            if collect:
+                self._collect_control_gaze = False
+
+    def _control_gaze_center_deg(self):
+        if not self._control_gaze_samples:
+            return None
+        sample_end = self._control_gaze_samples[-1][0]
+        samples = [
+            sample
+            for sample in self._control_gaze_samples
+            if sample[0] >= sample_end - CONTROL_GAZE_SAMPLE_WINDOW_S
+        ]
+        if not samples:
+            return None
+        mean_x_px = sum(sample[1] for sample in samples) / len(samples)
+        mean_y_px = sum(sample[2] for sample in samples) / len(samples)
+        center_x_deg = _pixels_to_visual_angle(
+            mean_x_px,
+            self.viewing_distance_cm,
+            self.monitor_width_cm,
+            self.win_sub.size[0],
+        )
+        center_y_deg = _pixels_to_visual_angle(
+            mean_y_px,
+            self.viewing_distance_cm,
+            self.monitor_height_cm,
+            self.win_sub.size[1],
+        )
+        return center_x_deg, center_y_deg, len(samples)
+
+    def _evaluate_control_gaze(self, trial_data):
+        if trial_data["Status"] != "Control_Success":
+            return False
+        center = self._control_gaze_center_deg()
+        if center is None:
+            self._send_tracker_event(
+                f"CONTROL_GAZE_CHECK TRIAL {trial_data['Trial']} VALID 0"
+            )
+            return False
+
+        center_x_deg, center_y_deg, sample_count = center
+        error_x_deg = center_x_deg - float(trial_data["Fixation_Pos_X_deg"])
+        error_y_deg = center_y_deg - float(trial_data["Fixation_Pos_Y_deg"])
+        error_deg = math.hypot(error_x_deg, error_y_deg)
+        threshold = self.control_error_threshold_deg
+        exceeded = error_deg > threshold
+        trial_data.update(
+            {
+                "Control_Gaze_Sample_Count": sample_count,
+                "Control_Gaze_Center_X_deg": center_x_deg,
+                "Control_Gaze_Center_Y_deg": center_y_deg,
+                "Control_Gaze_Error_X_deg": error_x_deg,
+                "Control_Gaze_Error_Y_deg": error_y_deg,
+                "Control_Gaze_Error_deg": error_deg,
+                "Control_Gaze_Error_Threshold_deg": threshold,
+                "Control_Gaze_Error_Exceeded": exceeded,
+            }
+        )
+        pair_id = str(trial_data["Control_Pair_ID"])
+        pair_member = int(trial_data["Control_Pair_Member"])
+        pair_exceeded = False
+        first = None
+        if pair_member == 1:
+            self._pending_control_pair = {
+                "pair_id": pair_id,
+                "error_deg": error_deg,
+                "trial": trial_data["Trial"],
+            }
+        elif pair_member == CONTROL_PAIR_SIZE:
+            first = self._pending_control_pair
+            pair_exceeded = bool(
+                first is not None
+                and first["pair_id"] == pair_id
+                and first["error_deg"] > threshold
+                and error_deg > threshold
+            )
+            self._pending_control_pair = None
+
+        trial_data["Control_Consecutive_Exceeded"] = pair_exceeded
+        trial_data["Control_Calibration_Alert"] = pair_exceeded
+        self._send_tracker_event(
+            "CONTROL_GAZE_CHECK "
+            f"TRIAL {trial_data['Trial']} PAIR {pair_id} "
+            f"MEMBER {pair_member} CENTER_X_DEG {center_x_deg:.4f} "
+            f"CENTER_Y_DEG {center_y_deg:.4f} "
+            f"ERROR_X_DEG {error_x_deg:.4f} "
+            f"ERROR_Y_DEG {error_y_deg:.4f} "
+            f"ERROR_DEG {error_deg:.4f} THRESHOLD_DEG {threshold:.4f} "
+            f"EXCEEDED {int(exceeded)}"
+        )
+        if pair_exceeded:
+            first_error = first["error_deg"]
+            self._drift_alert_pending = {
+                "pair_id": pair_id,
+                "first_trial": first["trial"],
+                "second_trial": trial_data["Trial"],
+                "first_error_deg": first_error,
+                "second_error_deg": error_deg,
+                "threshold_deg": threshold,
+            }
+            self._send_tracker_event(
+                "CONTROL_DRIFT_ALERT "
+                f"PAIR {pair_id} FIRST_ERROR_DEG {first_error:.4f} "
+                f"SECOND_ERROR_DEG {error_deg:.4f} "
+                f"THRESHOLD_DEG {threshold:.4f}"
+            )
+        return pair_exceeded
+
+    def _run_one_trial(self, trial_number):
+        self._control_gaze_samples = []
+        trial_data, pause_requested = super()._run_one_trial(trial_number)
+        if self.current_condition["Is_Control"]:
+            pause_requested = (
+                self._evaluate_control_gaze(trial_data) or pause_requested
+            )
+        return trial_data, pause_requested
+
+    def _run_gap(self, trial_data):
+        if self.current_condition["Is_Control"]:
+            return "Success", False
+        return super()._run_gap(trial_data)
 
     def _trial_should_reward(self, status, trial_data):
-        if self.current_condition["Is_Control"]:
-            return True
         return super()._trial_should_reward(status, trial_data)
 
     def _trial_status_for_log(self, status, trial_data):
         if self.current_condition["Is_Control"]:
-            return "Control_Reward"
+            return f"Control_{status}"
         return super()._trial_status_for_log(status, trial_data)
 
     def _poll_commands(self):
-        keys = event.getKeys()
-        if "escape" in keys:
-            raise TaskAbort()
-        return "n" in keys
+        return super()._poll_commands()
+
+    def _runtime_pause_notice(self):
+        alert = self._drift_alert_pending
+        if alert is None:
+            return None
+        return (
+            "Calibration warning / 校准警告\n"
+            "Both controls in the current pair exceeded the gaze-error "
+            "threshold. / 当前一对 control 均超过阈值。\n"
+            f"Errors: {alert['first_error_deg']:.2f}°, "
+            f"{alert['second_error_deg']:.2f}°; "
+            f"threshold: {alert['threshold_deg']:.2f}°."
+        )
+
+    def _recalibrate_eyelink(self):
+        self._send_tracker_event("FINEVISION_PAUSE_ACTION RECALIBRATE")
+        run_in_session_calibration(
+            tracker_backend=self.tracker_backend,
+            win_subject=self.win_sub,
+            win_control=self.win_ctl,
+            background_color=self.background_psychopy_color,
+            viewing_distance_cm=self.viewing_distance_cm,
+            monitor_width_cm=self.monitor_width_cm,
+            monitor_height_cm=self.monitor_height_cm,
+            fixation_point_radius_deg=self.fix_point_radius_deg,
+            arduino=self.arduino,
+            subject_screen_index=MONITOR_ID_SUBJECT,
+            blank_callback=lambda: self._present_frame(False, False),
+        )
+        self._suppress_calibration_escape()
+        self._send_tracker_event("FINEVISION_RECALIBRATION_RETURN_TO_TASK")
+        self._pending_control_pair = None
+        self._drift_alert_pending = None
+        self._control_gaze_samples = []
+        self.gaze_renderer.reset_trail()
+        event.clearEvents()
 
     def _write_session_plan(self):
         plan_path = os.path.join(
@@ -1076,12 +1388,14 @@ class SaccadeMultiStimTask(SaccadeTask):
         print("\n=== Saccade Multi-Stim Task started ===")
         print(
             f"Planned conditions: {planned_count}; "
-            f"blank controls: {control_count}; order: {self.condition_order}."
+            f"position controls: {control_count}; "
+            f"order: {self.condition_order}."
         )
         print(f"Condition plan: {plan_path}")
         print(
             "A failed trial repeats the same condition. "
-            "Blank controls are always rewarded. Press N to edit unlocked "
+            "Controls require fixation and repeat after failure. "
+            "Press N to edit unlocked "
             "runtime parameters; press Esc to stop."
         )
 
@@ -1094,16 +1408,35 @@ class SaccadeMultiStimTask(SaccadeTask):
         while condition_pointer < planned_count:
             if pause_requested:
                 self._present_frame(False, False)
-                if not self.task_manager.prompt_for_parameters(
+                pause_action = self.task_manager.prompt_for_runtime_parameters(
                     disabled_parameters=LOCKED_DURING_SESSION_PARAMS,
                     parameter_validator=self._validate_runtime_params,
                     title=(
                         "Runtime Parameters / 运行中参数 "
                         "(gray fields are locked / 灰色项已锁定)"
                     ),
-                ):
+                    allow_recalibration=bool(
+                        getattr(
+                            self.tracker_backend,
+                            "supports_recalibration",
+                            False,
+                        )
+                    ),
+                    notice=self._runtime_pause_notice(),
+                )
+                if pause_action == "cancel":
+                    self._send_tracker_event(
+                        "FINEVISION_PAUSE_ACTION CANCEL_SESSION"
+                    )
                     raise TaskAbort()
                 self._update_runtime_params()
+                if pause_action == "recalibrate":
+                    self._recalibrate_eyelink()
+                else:
+                    self._send_tracker_event(
+                        "FINEVISION_PAUSE_ACTION CONFIRM_CONTINUE"
+                    )
+                    self._drift_alert_pending = None
                 event.clearEvents()
                 pause_requested = False
 
@@ -1127,7 +1460,7 @@ class SaccadeMultiStimTask(SaccadeTask):
 
             trial_succeeded = trial_data["Status"] in (
                 "Success",
-                "Control_Reward",
+                "Control_Success",
             )
             if trial_succeeded:
                 success_count += 1
@@ -1145,7 +1478,7 @@ class SaccadeMultiStimTask(SaccadeTask):
 
             recent_trials = self.behavior_log[-40:]
             recent_success_count = sum(
-                trial["Status"] in ("Success", "Control_Reward")
+                trial["Status"] in ("Success", "Control_Success")
                 for trial in recent_trials
             )
             print(
@@ -1228,7 +1561,7 @@ def main(tracker_mode="qy"):
         )
         win_control = visual.Window(
             screen=MONITOR_ID_CONTROL,
-            size=[800, 600],
+            size=[800, 450],
             fullscr=False,
             waitBlanking=False,
             color="black",

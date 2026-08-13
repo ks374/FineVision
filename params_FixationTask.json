@@ -2,9 +2,9 @@
     "parameters": {
         "Subject ID": "Monkey_H18",
         "Wait Time (s)": 5.0,
-        "Stim Duration (s)": 1.7,
-        "Fix Window Radius (pix)": 200,
-        "Reward Length (s)": 0.7,
+        "Stim Duration (s)": 1.2,
+        "Fix Window Radius (pix)": 250,
+        "Reward Length (s)": 0.45,
         "ITI (s)": 4.0,
         "Timeout (s)": 0.1
     }

@@ -18,6 +18,17 @@ class TrackerBackend(ABC):
         """Queue a tracker event immediately after the next subject flip."""
         window.callOnFlip(self.send_event, message)
 
+    @property
+    def supports_recalibration(self):
+        """Return whether the backend can reopen its native setup screen."""
+        return False
+
+    def recalibrate(self, window, **kwargs):
+        """Run native calibration without closing the current data file."""
+        raise RuntimeError(
+            f"{type(self).__name__} does not support in-session calibration."
+        )
+
     @abstractmethod
     def close(self):
         """Stop acquisition and release tracker resources."""

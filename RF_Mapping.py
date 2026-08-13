@@ -360,7 +360,7 @@ if __name__ == '__main__':
 
     win_control = visual.Window(
         screen=MONITOR_ID_CONTROL,
-        size=[800, 600],   
+        size=[800, 450],
         fullscr=False,     
         waitBlanking=False, 
         color='black',

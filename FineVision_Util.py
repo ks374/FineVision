@@ -3,7 +3,10 @@ import serial
 import serial.tools.list_ports as list_ports
 import time
 import winsound
-from trodesnetwork import socket # 假设你已安装 SpikeGadgets 的 Python API
+try:
+    from trodesnetwork import socket
+except ImportError:
+    socket = None
 
 
 # %%
@@ -126,6 +129,12 @@ class SpikeGadgetsBridge:
             self.connect(connection_name)
 
     def connect(self, connection_name):
+        if socket is None:
+            print(
+                "[Hardware] SpikeGadgets disabled: optional "
+                "trodesnetwork package is not installed."
+            )
+            return
         try:
             self.subscriber = socket.SourceSubscriber(connection_name)
             self.connected = True

@@ -11,10 +11,10 @@ INVALID_GAZE = -999.0
 class EyeLinkBackend(TrackerBackend):
     """Direct PyLink backend with EDF recording and custom calibration input.
 
-    FineVision intentionally does not call EyeLink's display calibration here.
-    With ``sample_source='href'``, the user's CalibrationManager maps the HREF
-    coordinates into FineVision screen coordinates.  Camera setup and tracking
-    quality still need to be checked on the EyeLink Host before the task.
+    The active FineVision configuration reads right-eye HREF coordinates and
+    maps them into task-screen pixels with FineVision's custom calibration.
+    EyeLink GAZE screen coordinates remain available as an optional source,
+    but are not used by the default EyeLink task configuration.
     """
 
     mode = "eyelink"
@@ -28,6 +28,7 @@ class EyeLinkBackend(TrackerBackend):
         sample_rate=1000,
         sample_source="href",
         calibration_file="eyelink_default_setting.json",
+        active_eye="right",
         session_t0=None,
     ):
         from Shared_Memory_Util import SharedGazeData
@@ -41,6 +42,9 @@ class EyeLinkBackend(TrackerBackend):
         self.sample_source = str(sample_source).lower()
         if self.sample_source not in {"href", "gaze"}:
             raise ValueError("EyeLink sample_source must be 'href' or 'gaze'.")
+        self.active_eye = str(active_eye).lower()
+        if self.active_eye != "right":
+            raise ValueError("EyeLink active_eye must be 'right'.")
 
         self.session_t0 = (
             float(session_t0) if session_t0 is not None else time.perf_counter()
@@ -54,6 +58,8 @@ class EyeLinkBackend(TrackerBackend):
         self._data_file_open = False
         self._closed = False
         self._last_sample_time = None
+        self._graphics_open = False
+        self._calibration_graphics = None
         try:
             self._connect_and_record()
         except Exception:
@@ -63,6 +69,10 @@ class EyeLinkBackend(TrackerBackend):
     @property
     def gaze_source(self):
         return self
+
+    @property
+    def supports_recalibration(self):
+        return True
 
     def _connect_and_record(self):
         try:
@@ -107,10 +117,23 @@ class EyeLinkBackend(TrackerBackend):
         except Exception:
             pass
         finally:
+            self._close_calibration_graphics()
             try:
                 self._tracker.close()
             except Exception:
                 pass
+
+    def _close_calibration_graphics(self):
+        """Close PyLink graphics only after all Host transfers are done."""
+        if not self._graphics_open or self._pylink is None:
+            return
+        try:
+            self._pylink.closeGraphics()
+        except Exception:
+            pass
+        finally:
+            self._graphics_open = False
+            self._calibration_graphics = None
 
     def _configure_tracker(self):
         right = self.screen_width - 1
@@ -215,17 +238,40 @@ class EyeLinkBackend(TrackerBackend):
 
     def get_latest_cal(self):
         self._poll()
-        return self._gaze_source.get_latest_cal()
+        if self.sample_source == "gaze":
+            # EyeLink GAZE is already calibrated by the Host and _eye_pair()
+            # has already converted it from top-left screen pixels to
+            # FineVision's centered coordinate system.  Applying the custom
+            # HREF affine calibration here would calibrate the sample twice.
+            gaze = self._gaze_source.get_latest()
+        else:
+            gaze = self._gaze_source.get_latest_cal()
+
+        # The EyeLink calibration export supplied for this task contains only
+        # right-eye coefficients.  Online task decisions must therefore use
+        # that calibrated eye exclusively, rather than averaging it with the
+        # uncalibrated left eye or falling back to left-eye samples.
+        if not gaze["right_valid"]:
+            gaze.update({"x": INVALID_GAZE, "y": INVALID_GAZE, "valid": False})
+            return gaze
+        gaze.update({"x": gaze["xr"], "y": gaze["yr"], "valid": True})
+        return gaze
 
     def get_buffer_snapshot(self, last_n=None):
         self._poll()
         return self._gaze_source.get_buffer_snapshot(last_n)
 
-    def set_calibration_left(self, ox, oy, gx, gy):
-        self._gaze_source.set_calibration_left(ox, oy, gx, gy)
+    def set_calibration_left(self, ox, oy, gx, gy, gxy=0.0, gyx=0.0):
+        self._gaze_source.set_calibration_left(ox, oy, gx, gy, gxy, gyx)
 
-    def set_calibration_right(self, ox, oy, gx, gy):
-        self._gaze_source.set_calibration_right(ox, oy, gx, gy)
+    def set_calibration_right(self, ox, oy, gx, gy, gxy=0.0, gyx=0.0):
+        self._gaze_source.set_calibration_right(ox, oy, gx, gy, gxy, gyx)
+
+    def set_calibration_left_dict(self, calibration):
+        self._gaze_source.set_calibration_left_dict(calibration)
+
+    def set_calibration_right_dict(self, calibration):
+        self._gaze_source.set_calibration_right_dict(calibration)
 
     def get_calibration_left(self):
         return self._gaze_source.get_calibration_left()
@@ -245,6 +291,165 @@ class EyeLinkBackend(TrackerBackend):
             return
         safe_message = " ".join(str(message).replace("\n", " ").split())
         self._tracker.sendMessage(safe_message)
+
+    def recalibrate(
+        self,
+        window,
+        *,
+        calibration_type="HV5",
+        max_eccentricity_deg=12.0,
+        viewing_distance_cm=60.0,
+        monitor_width_cm=54.0,
+        monitor_height_cm=30.0,
+        fixation_point_radius_deg=0.2,
+        background_color=(0.0, 0.0, 0.0),
+        arduino=None,
+        reward_mode="advance",
+        reward_ms=300,
+        pacing_ms=1200,
+    ):
+        """Run EyeLink setup/calibration and resume the same open EDF.
+
+        Recording is stopped before ``doTrackerSetup`` and restarted after it
+        returns.  The Host data file remains open throughout, so samples from
+        before and after recalibration stay in one EDF.
+        """
+        if self._closed or self._tracker is None:
+            raise RuntimeError("EyeLink is not available for recalibration.")
+        calibration_type = str(calibration_type).upper()
+        if calibration_type not in {"HV5", "HV9"}:
+            raise ValueError("EyeLink calibration_type must be HV5 or HV9.")
+
+        from EyeLink_Native_Calibration import (
+            _axis_calibration_extent,
+            _build_rewarding_graphics,
+            _load_official_graphics_class,
+            _task_visual_angle_to_pixels,
+        )
+
+        was_recording = self._recording
+        setup_error = None
+        self.send_event(
+            "FINEVISION_RECALIBRATION_REQUESTED "
+            f"TYPE {calibration_type}"
+        )
+        try:
+            if was_recording:
+                self._tracker.stopRecording()
+                self._recording = False
+                self._pylink.pumpDelay(100)
+            self._tracker.setOfflineMode()
+
+            x_area = _axis_calibration_extent(
+                max_eccentricity_deg,
+                viewing_distance_cm,
+                monitor_width_cm,
+                self.screen_width,
+            )
+            y_area = _axis_calibration_extent(
+                max_eccentricity_deg,
+                viewing_distance_cm,
+                monitor_height_cm,
+                self.screen_height,
+            )
+            target_radius_px = _task_visual_angle_to_pixels(
+                fixation_point_radius_deg,
+                viewing_distance_cm,
+                monitor_width_cm,
+                self.screen_width,
+            )
+            target_size_px = max(2, int(round(2.0 * target_radius_px)))
+
+            self._tracker.sendCommand(
+                f"calibration_type = {calibration_type}"
+            )
+            self._tracker.sendCommand(
+                "calibration_area_proportion "
+                f"{x_area['proportion']:.6f} {y_area['proportion']:.6f}"
+            )
+            self._tracker.sendCommand(
+                "validation_area_proportion "
+                f"{x_area['proportion']:.6f} {y_area['proportion']:.6f}"
+            )
+            if reward_mode == "manual":
+                self._tracker.sendCommand("enable_automatic_calibration = NO")
+            else:
+                self._tracker.sendCommand("enable_automatic_calibration = YES")
+                self._tracker.sendCommand(
+                    f"automatic_calibration_pacing = {int(pacing_ms)}"
+                )
+
+            official_graphics, _ = _load_official_graphics_class()
+            rewarding_graphics = _build_rewarding_graphics(
+                official_graphics,
+                self._pylink,
+                auto_exit_after_success=True,
+                auto_start_calibration=True,
+            )
+            graphics = rewarding_graphics(
+                self._tracker,
+                window,
+                arduino,
+                str(reward_mode),
+                int(reward_ms),
+            )
+            graphics.setCalibrationColors("white", background_color)
+            graphics.setTargetType("circle")
+            graphics.setTargetSize(target_size_px)
+            graphics._calibInst.text = (
+                "Calibration starts automatically on the subject screen\n"
+                "C: restart calibration    V: validation\n"
+                "Successful calibration returns automatically\n"
+                "ESC: return without completing calibration"
+            )
+            self._pylink.openGraphicsEx(graphics)
+            # Keep a strong reference and leave the PyLink callbacks
+            # registered until EDF transfer has finished. receiveDataFile()
+            # may still poll get_input_key(); closing graphics here replaces
+            # its adapter with None and can abort task shutdown.
+            self._calibration_graphics = graphics
+            self._graphics_open = True
+            self._tracker.sendMessage(
+                "FINEVISION_RECALIBRATION_START "
+                f"TYPE {calibration_type} "
+                f"MAX_ECC_DEG {float(max_eccentricity_deg):.3f}"
+            )
+            self._tracker.doTrackerSetup()
+            calibration_message = ""
+            try:
+                calibration_message = self._tracker.getCalibrationMessage()
+            except Exception:
+                pass
+            safe_result = "_".join(str(calibration_message).split())
+            self._tracker.sendMessage(
+                "FINEVISION_RECALIBRATION_SETUP_END "
+                f"RESULT {safe_result or 'UNKNOWN'}"
+            )
+        except BaseException as exc:
+            setup_error = exc
+        finally:
+            try:
+                self._tracker.setOfflineMode()
+                if was_recording:
+                    result = self._tracker.startRecording(1, 1, 1, 1)
+                    if result not in (None, 0):
+                        raise RuntimeError(
+                            f"EyeLink startRecording failed after calibration: "
+                            f"{result}"
+                        )
+                    self._recording = True
+                    self._pylink.pumpDelay(100)
+                    self._tracker.sendMessage(
+                        "FINEVISION_RECALIBRATION_RECORDING_RESUMED"
+                    )
+                    self._last_sample_time = None
+            except BaseException as resume_error:
+                if setup_error is None:
+                    setup_error = resume_error
+
+        if setup_error is not None:
+            raise setup_error
+        return True
 
     def close(self):
         if self._closed:
@@ -277,6 +482,7 @@ class EyeLinkBackend(TrackerBackend):
                     except Exception as exc:
                         transfer_error = exc
         finally:
+            self._close_calibration_graphics()
             self._gaze_source.stop()
             if self._tracker is not None:
                 self._tracker.close()

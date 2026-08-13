@@ -23,6 +23,7 @@ IS_SIMULATING = 0
 MONITOR_ID_SUBJECT = 1
 MONITOR_ID_CONTROL = 0
 EYE_TRACKER_RATE_HZ = 100
+CALIBRATION_ESCAPE_SUPPRESSION_S = 1.0
 
 
 DEFAULT_PARAMS = {
@@ -527,7 +528,32 @@ class SaccadeTask:
             self.tracker_backend.send_event(message)
 
     def _send_trial_start_metadata(self, trial_data):
-        """Hook for task variants that add EDF trial variables."""
+        """Write the per-trial geometry and timing needed for EDF analysis."""
+        metadata = {
+            "Subject_ID": trial_data["Subject_ID"],
+            "Planned_Fixation_Duration_ms": trial_data[
+                "Planned_Fixation_Duration_ms"
+            ],
+            "Fixation_Pos_X_deg": trial_data["Fixation_Pos_X_deg"],
+            "Fixation_Pos_Y_deg": trial_data["Fixation_Pos_Y_deg"],
+            "Fixation_Point_Radius_deg": trial_data[
+                "Fixation_Point_Radius_deg"
+            ],
+            "Fix_Window_Radius_deg": trial_data["Fix_Window_Radius_deg"],
+            "Stim_Pos_X_deg": trial_data["Stim_Pos_X_deg"],
+            "Stim_Pos_Y_deg": trial_data["Stim_Pos_Y_deg"],
+            "Stim_Window_Radius_deg": trial_data[
+                "Stim_Window_Radius_deg"
+            ],
+            "Stim_Major_Axis_deg": trial_data["Stim_Major_Axis_deg"],
+            "Stim_Minor_Axis_deg": trial_data["Stim_Minor_Axis_deg"],
+            "Stim_Orientation_deg": trial_data["Stim_Orientation_deg"],
+            "Gap_Duration_ms": trial_data["Gap_Duration_ms"],
+            "Stim_Duration_ms": trial_data["Stim_Duration_ms"],
+            "Stim_Hold_Time_ms": trial_data["Stim_Hold_Time_ms"],
+        }
+        for field, value in metadata.items():
+            self._send_tracker_event(f"!V TRIAL_VAR {field} {value}")
 
     def _schedule_flip_time(self, trial_data, field):
         if trial_data[field] is None:
@@ -535,9 +561,22 @@ class SaccadeTask:
 
     def _poll_commands(self):
         keys = event.getKeys()
-        if "escape" in keys:
+        escape_suppressed_until = float(
+            getattr(self, "_escape_suppressed_until", 0.0)
+        )
+        escape_is_suppressed = (
+            time.perf_counter() < escape_suppressed_until
+        )
+        if "escape" in keys and not escape_is_suppressed:
             raise TaskAbort()
         return "n" in keys
+
+    def _suppress_calibration_escape(self):
+        """Discard the Escape that just closed EyeLink setup."""
+        self._escape_suppressed_until = (
+            time.perf_counter() + CALIBRATION_ESCAPE_SUPPRESSION_S
+        )
+        event.clearEvents()
 
     def _in_window(self, gaze, center_x, center_y, radius):
         return bool(gaze["valid"]) and math.hypot(
@@ -981,7 +1020,7 @@ def main(tracker_mode="qy"):
         )
         win_control = visual.Window(
             screen=MONITOR_ID_CONTROL,
-            size=[800, 600],
+            size=[800, 450],
             fullscr=False,
             waitBlanking=False,
             color="black",

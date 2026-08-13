@@ -1,0 +1,19 @@
+{
+    "parameters": {
+        "EyeLink Host IP": "100.1.1.1",
+        "Calibration Type": "HV9",
+        "Maximum Calibration Eccentricity (deg)": 12.0,
+        "Fixation Point Radius (deg)": 0.2,
+        "Background Gray Level (0-182)": 5,
+        "Viewing Distance (cm)": 61.0,
+        "Subject Monitor Width (cm)": 54.0,
+        "Subject Monitor Height (cm)": 30.0,
+        "Subject Screen Index": 1,
+        "Screen Width (px)": 1920,
+        "Screen Height (px)": 1080,
+        "Full Screen": true,
+        "Reward Mode": "advance",
+        "Reward Duration (ms)": 500,
+        "Automatic Pacing (ms)": 1200
+    }
+}

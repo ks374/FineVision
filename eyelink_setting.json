@@ -1,8 +1,8 @@
 {
   "host_ip": "100.1.1.1",
   "sample_rate_hz": 1000,
-  "sample_source": "href",
-  "calibration_file": "eyelink_default_setting.json",
-  "native_eyelink_calibration": false,
-  "notes": "HREF samples are mapped by FineVision's custom CalibrationManager. Camera alignment is still performed on the EyeLink Host."
+  "sample_source": "gaze",
+  "calibration_file": "eyelink_gaze_identity_setting.json",
+  "active_eye": "right",
+  "notes": "FineVision reads right-eye EyeLink GAZE screen coordinates. The backend converts them to centered task pixels and deliberately bypasses FineVision's HREF affine calibration. Run EyeLink native calibration and validation before the task."
 }

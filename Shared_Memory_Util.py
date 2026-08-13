@@ -6,6 +6,27 @@ import os
 from Json_manager import read_json
 
 
+def normalize_calibration(calibration=None):
+    """Return a backward-compatible 2-D affine calibration dictionary.
+
+    screen_x = ox + gx * raw_x + gxy * raw_y
+    screen_y = oy + gyx * raw_x + gy * raw_y
+
+    Legacy four-value calibrations remain valid because both cross-axis
+    coefficients default to zero.
+    """
+    calibration = calibration or {}
+    return {
+        "model": str(calibration.get("model", "affine_2d")),
+        "ox": float(calibration.get("ox", 0.0)),
+        "oy": float(calibration.get("oy", 0.0)),
+        "gx": float(calibration.get("gx", 1.0)),
+        "gy": float(calibration.get("gy", 1.0)),
+        "gxy": float(calibration.get("gxy", 0.0)),
+        "gyx": float(calibration.get("gyx", 0.0)),
+    }
+
+
 class SharedGazeData:
     """Hardware-neutral, process-safe storage for the latest gaze sample."""
 
@@ -17,8 +38,12 @@ class SharedGazeData:
         # --- 0. Calibration parameter --- 
         self._offset_xl = Value('d',0.0) ; self._offset_yl = Value('d',0.0)
         self._gain_xl = Value('d',1.0) ; self._gain_yl = Value('d',1.0)
+        self._gain_x_from_yl = Value('d', 0.0)
+        self._gain_y_from_xl = Value('d', 0.0)
         self._offset_xr = Value('d',0.0) ; self._offset_yr = Value('d',0.0)
         self._gain_xr = Value('d',1.0) ; self._gain_yr = Value('d',1.0)
+        self._gain_x_from_yr = Value('d', 0.0)
+        self._gain_y_from_xr = Value('d', 0.0)
 
         # --- 1. 最新数据 (用于实时反馈，如画光标) ---
         # 双眼 X, Y
@@ -67,14 +92,8 @@ class SharedGazeData:
 
         # 4. 将读取到的参数写入共享内存
         # 再次使用 .get() 防范 json 内部字典缺斤少两
-        self.set_calibration_left(
-            left_cal.get('ox', 0.0), left_cal.get('oy', 0.0), 
-            left_cal.get('gx', 1.0), left_cal.get('gy', 1.0)
-        )
-        self.set_calibration_right(
-            right_cal.get('ox', 0.0), right_cal.get('oy', 0.0), 
-            right_cal.get('gx', 1.0), right_cal.get('gy', 1.0)
-        )
+        self.set_calibration_left_dict(left_cal)
+        self.set_calibration_right_dict(right_cal)
 
     def update(self, data):
         """
@@ -139,10 +158,32 @@ class SharedGazeData:
         data = self.get_latest()
         left_valid = bool(data['left_valid'])
         right_valid = bool(data['right_valid'])
-        xl = data['xl'] * self._gain_xl.value + self._offset_xl.value if left_valid else -999.0
-        yl = data['yl'] * self._gain_yl.value + self._offset_yl.value if left_valid else -999.0
-        xr = data['xr'] * self._gain_xr.value + self._offset_xr.value if right_valid else -999.0
-        yr = data['yr'] * self._gain_yr.value + self._offset_yr.value if right_valid else -999.0
+        if left_valid:
+            xl = (
+                self._offset_xl.value
+                + data['xl'] * self._gain_xl.value
+                + data['yl'] * self._gain_x_from_yl.value
+            )
+            yl = (
+                self._offset_yl.value
+                + data['xl'] * self._gain_y_from_xl.value
+                + data['yl'] * self._gain_yl.value
+            )
+        else:
+            xl = yl = -999.0
+        if right_valid:
+            xr = (
+                self._offset_xr.value
+                + data['xr'] * self._gain_xr.value
+                + data['yr'] * self._gain_x_from_yr.value
+            )
+            yr = (
+                self._offset_yr.value
+                + data['xr'] * self._gain_y_from_xr.value
+                + data['yr'] * self._gain_yr.value
+            )
+        else:
+            xr = yr = -999.0
         # 双眼平均。原实现误写成 (xl + xl) / 2，导致右眼 X 完全未参与。
         valid_points = []
         if left_valid:
@@ -204,29 +245,55 @@ class SharedGazeData:
         
         return xl, yl, xr, yr, ts
 
-    def set_calibration_left(self, ox, oy, gx, gy):
+    def set_calibration_left(self, ox, oy, gx, gy, gxy=0.0, gyx=0.0):
         """更新左眼参数"""
         with self._lock:
             self._offset_xl.value, self._offset_yl.value = ox, oy
             self._gain_xl.value, self._gain_yl.value = gx, gy
+            self._gain_x_from_yl.value = gxy
+            self._gain_y_from_xl.value = gyx
 
-    def set_calibration_right(self, ox, oy, gx, gy):
+    def set_calibration_right(self, ox, oy, gx, gy, gxy=0.0, gyx=0.0):
         """更新右眼参数"""
         with self._lock:
             self._offset_xr.value, self._offset_yr.value = ox, oy
             self._gain_xr.value, self._gain_yr.value = gx, gy
+            self._gain_x_from_yr.value = gxy
+            self._gain_y_from_xr.value = gyx
+
+    def set_calibration_left_dict(self, calibration):
+        calibration = normalize_calibration(calibration)
+        self.set_calibration_left(
+            calibration['ox'], calibration['oy'],
+            calibration['gx'], calibration['gy'],
+            calibration['gxy'], calibration['gyx'],
+        )
+
+    def set_calibration_right_dict(self, calibration):
+        calibration = normalize_calibration(calibration)
+        self.set_calibration_right(
+            calibration['ox'], calibration['oy'],
+            calibration['gx'], calibration['gy'],
+            calibration['gxy'], calibration['gyx'],
+        )
     
     def get_calibration_left(self):
         with self._lock:
             return {
+                'model': 'affine_2d',
                 'ox': self._offset_xl.value, 'oy': self._offset_yl.value,
-                'gx': self._gain_xl.value, 'gy': self._gain_yl.value
+                'gx': self._gain_xl.value, 'gy': self._gain_yl.value,
+                'gxy': self._gain_x_from_yl.value,
+                'gyx': self._gain_y_from_xl.value,
             }
     def get_calibration_right(self):
         with self._lock:
             return {
+                'model': 'affine_2d',
                 'ox': self._offset_xr.value, 'oy': self._offset_yr.value,
-                'gx': self._gain_xr.value, 'gy': self._gain_yr.value
+                'gx': self._gain_xr.value, 'gy': self._gain_yr.value,
+                'gxy': self._gain_x_from_yr.value,
+                'gyx': self._gain_y_from_xr.value,
             }
 
 

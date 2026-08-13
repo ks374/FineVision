@@ -1,0 +1,20 @@
+{
+  "parameters": {
+    "Subject ID": "Monkey_H18",
+    "Calibration Horizontal Extent (deg)": 9.0,
+    "Calibration Vertical Extent (deg)": 5.0,
+    "Fixation Point Radius (deg)": 0.2,
+    "Fix Window Radius (deg)": 5.5,
+    "Fixation Duration (ms)": 500,
+    "Maximum Wait per Point (s)": 5.0,
+    "ITI (s)": 3.0,
+    "Reward Duration (ms)": 300,
+    "Background Gray Level (0-182)": 5,
+    "Viewing Distance (cm)": 58.0,
+    "Subject Monitor Width (cm)": 54.0,
+    "Subject Monitor Height (cm)": 30.0,
+    "Subject Screen Index": 1,
+    "Control Screen Index": 0,
+    "Full Screen": false
+  }
+}

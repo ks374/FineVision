@@ -34,12 +34,19 @@ class _ScrollableParameterDialog:
         parameter_validator=None,
         disabled_parameters=None,
         parameter_summary_provider=None,
+        runtime_actions=False,
+        allow_recalibration=False,
+        notice=None,
     ):
         self.parameters = parameters
         self.parameter_validator = parameter_validator
         self.disabled_parameters = set(disabled_parameters or ())
         self.parameter_summary_provider = parameter_summary_provider
+        self.runtime_actions = bool(runtime_actions)
+        self.allow_recalibration = bool(allow_recalibration)
+        self.notice = None if notice is None else str(notice)
         self.result = None
+        self.action = "cancel"
         self.variables = {}
         self.widgets = {}
         self.widget_locations = {}
@@ -67,10 +74,23 @@ class _ScrollableParameterDialog:
             self._add_parameter_tab(group_name, parameter_names)
 
         footer_row = 1
+        if self.notice:
+            notice_frame = ttk.Frame(container, padding=(0, 8, 0, 0))
+            notice_frame.grid(row=footer_row, column=0, sticky="ew")
+            tk.Label(
+                notice_frame,
+                text=self.notice,
+                anchor="w",
+                justify="left",
+                fg="#c62828",
+                font=("TkDefaultFont", 10, "bold"),
+                wraplength=760,
+            ).pack(fill="x")
+            footer_row += 1
         self.summary_variable = None
         if self.parameter_summary_provider is not None:
             status_frame = ttk.Frame(container, padding=(0, 8, 0, 0))
-            status_frame.grid(row=1, column=0, sticky="ew")
+            status_frame.grid(row=footer_row, column=0, sticky="ew")
             ttk.Separator(
                 status_frame,
                 orient="horizontal",
@@ -81,22 +101,56 @@ class _ScrollableParameterDialog:
                 textvariable=self.summary_variable,
                 anchor="w",
             ).pack(fill="x")
-            footer_row = 2
+            footer_row += 1
 
         footer = ttk.Frame(container, padding=(0, 10, 0, 0))
         footer.grid(row=footer_row, column=0, sticky="e")
-        ttk.Button(
-            footer,
-            text="Cancel",
-            command=self._cancel,
-            width=12,
-        ).pack(side="right", padx=(8, 0))
-        ttk.Button(
-            footer,
-            text="OK",
-            command=self._accept,
-            width=12,
-        ).pack(side="right")
+        if self.runtime_actions:
+            button_style = {
+                "width": 16,
+                "fg": "white",
+                "activeforeground": "white",
+                "relief": "raised",
+                "borderwidth": 1,
+            }
+            tk.Button(
+                footer,
+                text="Cancel / 取消",
+                command=self._cancel,
+                bg="#c62828",
+                activebackground="#b71c1c",
+                **button_style,
+            ).pack(side="right", padx=(8, 0))
+            if self.allow_recalibration:
+                tk.Button(
+                    footer,
+                    text="Recalibrate / 重新校准",
+                    command=lambda: self._accept("recalibrate"),
+                    bg="#1565c0",
+                    activebackground="#0d47a1",
+                    **button_style,
+                ).pack(side="right", padx=(8, 0))
+            tk.Button(
+                footer,
+                text="Confirm / 确定",
+                command=lambda: self._accept("confirm"),
+                bg="#1565c0",
+                activebackground="#0d47a1",
+                **button_style,
+            ).pack(side="right")
+        else:
+            ttk.Button(
+                footer,
+                text="Cancel",
+                command=self._cancel,
+                width=12,
+            ).pack(side="right", padx=(8, 0))
+            ttk.Button(
+                footer,
+                text="OK",
+                command=self._accept,
+                width=12,
+            ).pack(side="right")
 
         self.root.bind("<Return>", lambda event: self._accept())
         self.root.bind("<Escape>", lambda event: self._cancel())
@@ -289,7 +343,7 @@ class _ScrollableParameterDialog:
             summary = "Planned trials: — (enter a complete valid range)"
         self.summary_variable.set(str(summary))
 
-    def _accept(self):
+    def _accept(self, action="confirm"):
         updated = {}
         for name, original_value in self.parameters.items():
             raw_value = self.variables[name].get()
@@ -333,10 +387,12 @@ class _ScrollableParameterDialog:
                 return
 
         self.result = updated
+        self.action = str(action)
         self._close()
 
     def _cancel(self):
         self.result = None
+        self.action = "cancel"
         self._close()
 
     def _close(self):
@@ -472,6 +528,46 @@ class FineVision_Notebook:
         update_json(self.param_file, "parameters", self.exp_params)
         print("\n=== Experiment parameters confirmed and saved ===")
         return True
+
+    def prompt_for_runtime_parameters(
+        self,
+        disabled_parameters=None,
+        parameter_validator=None,
+        title=None,
+        allow_recalibration=False,
+        notice=None,
+    ):
+        """Edit live parameters and return confirm/recalibrate/cancel.
+
+        Unlike the startup dialog, cancelling this menu does not call
+        ``core.quit``.  The running task decides how to end its session.
+        """
+        print(f"Waiting for {self.task_name} runtime parameters...")
+        dialog = _ScrollableParameterDialog(
+            parameters=self.exp_params,
+            title=title or f"Runtime Parameters ({self.task_name})",
+            parameter_groups=self.parameter_groups,
+            parameter_validator=(
+                parameter_validator
+                if parameter_validator is not None
+                else self.parameter_validator
+            ),
+            disabled_parameters=disabled_parameters,
+            parameter_summary_provider=self.parameter_summary_provider,
+            runtime_actions=True,
+            allow_recalibration=bool(allow_recalibration),
+            notice=notice,
+        )
+        updated_params = dialog.show()
+        if updated_params is None:
+            print("Runtime parameter editing cancelled.")
+            return "cancel"
+
+        self.exp_params.clear()
+        self.exp_params.update(updated_params)
+        update_json(self.param_file, "parameters", self.exp_params)
+        print("\n=== Runtime parameters confirmed and saved ===")
+        return dialog.action
 
 '''
     # ===== 外部调用的例子 =====

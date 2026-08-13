@@ -1,0 +1,1692 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src 'unsafe-inline' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Eyelink Fixation Drift Correction</title>
+<style>:root{color-scheme:light dark;background:light-dark(rgb(255 255 255), rgb(24 24 24))}html,body{margin:0}body{box-sizing:border-box;padding:1rem;background:inherit}iframe{display:block;width:100%;height:calc(100vh - 2rem);margin:0 auto;border:0}</style>
+</head>
+<body>
+<iframe sandbox="allow-scripts" referrerpolicy="no-referrer" title="Eyelink Fixation Drift Correction" srcdoc="&lt;!doctype html&gt;
+&lt;html lang=&quot;en&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+&lt;meta name=&quot;referrer&quot; content=&quot;no-referrer&quot;&gt;
+&lt;meta http-equiv=&quot;Content-Security-Policy&quot; content=&quot;default-src &#x27;none&#x27;; script-src &#x27;unsafe-inline&#x27; &#x27;unsafe-eval&#x27; &#x27;wasm-unsafe-eval&#x27; blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src &#x27;unsafe-inline&#x27; blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src &#x27;none&#x27;; object-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;&quot;&gt;
+&lt;title&gt;Eyelink Fixation Drift Correction&lt;/title&gt;
+&lt;style&gt;:root {
+  color-scheme: light dark;
+  background-color: var(
+    --background,
+    var(--color-background-primary, light-dark(rgb(255 255 255), rgb(24 24 24)))
+  ) !important;
+
+  /* Agent-facing contract; keep in sync with SKILL.md. */
+  --background: var(
+    --color-background-primary,
+    light-dark(rgb(255 255 255), rgb(24 24 24))
+  );
+  --foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --card: color-mix(in oklab, var(--foreground) 5%, var(--background));
+  --card-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --popover: var(
+    --color-background-secondary,
+    light-dark(rgb(255 255 255), rgb(45 45 45))
+  );
+  --popover-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --primary: var(
+    --color-text-info,
+    light-dark(rgb(51 156 255), rgb(131 195 255))
+  );
+  --primary-foreground: var(
+    --color-text-inverse,
+    light-dark(rgb(255 255 255), rgb(13 13 13))
+  );
+  --secondary: var(
+    --color-background-secondary,
+    light-dark(rgb(255 255 255 / 96%), rgb(54 54 54 / 96%))
+  );
+  --secondary-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --muted: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --muted-foreground: var(
+    --color-text-secondary,
+    light-dark(rgb(26 28 31 / 49.4%), rgb(255 255 255 / 49.8%))
+  );
+  --accent: var(
+    --color-background-info,
+    light-dark(rgb(229 242 255), rgb(13 39 63))
+  );
+  --accent-foreground: var(
+    --color-text-info,
+    light-dark(rgb(51 156 255), rgb(131 195 255))
+  );
+  --destructive: var(
+    --color-text-warning,
+    light-dark(rgb(226 85 7), rgb(255 133 73))
+  );
+  --border: var(
+    --color-border-secondary,
+    light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%))
+  );
+  --input: var(
+    --color-border-primary,
+    light-dark(
+      rgb(26 28 31 / 11.8%),
+      color-mix(in oklab, rgb(0 0 0) 10%, transparent)
+    )
+  );
+  --ring: var(
+    --color-ring-primary,
+    light-dark(rgb(51 156 255), rgb(131 195 255 / 76%))
+  );
+  --font-size-base: var(--font-text-md-size, 14px);
+  --blue: light-dark(rgb(51 156 255), rgb(51 156 255));
+  --orange: light-dark(rgb(226 85 7), rgb(251 106 34));
+  --green: light-dark(rgb(0 162 64), rgb(64 201 119));
+  --red: light-dark(rgb(224 46 42), rgb(255 103 100));
+  --purple: light-dark(rgb(146 79 247), rgb(173 123 249));
+  --yellow: light-dark(rgb(255 195 0), rgb(255 210 64));
+  --viz-series-1: var(--primary);
+  --viz-series-2: light-dark(rgb(243 136 59), rgb(245 154 86));
+  --viz-series-3: light-dark(rgb(93 201 119), rgb(116 213 139));
+  --viz-series-4: light-dark(rgb(235 119 177), rgb(240 143 192));
+  --viz-series-5: light-dark(rgb(155 121 236), rgb(170 145 239));
+  --viz-series-6: light-dark(rgb(58 185 177), rgb(90 203 194));
+
+  /* Internal implementation variables; not part of the agent contract. */
+  --font-sans: -apple-system, system-ui, &quot;Segoe UI&quot;, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, &quot;Liberation Mono&quot;,
+    monospace;
+  --font-size-normal: max(11px, var(--font-size-base));
+  --font-size-tooltip: calc(var(--font-size-base) - 1px);
+  --font-size-small: max(11px, calc(var(--font-size-base) - 2px));
+  --font-size-h1: calc(var(--font-size-normal) * 1.7142857143);
+  --font-size-h2: calc(var(--font-size-normal) * 1.4285714286);
+  --font-size-h3: calc(var(--font-size-normal) * 1.2857142857);
+  --font-weight-normal: 430;
+  --font-weight-medium: 500;
+  --line-height-normal: calc(var(--font-size-normal) * 1.5);
+  --line-height-tooltip: calc(var(--font-size-tooltip) * 1.4285714286);
+  --line-height-small: calc(var(--font-size-small) + 4px);
+  --radius: var(--border-radius-lg, 12.5px);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-2xl: calc(var(--radius) * 1.6);
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px -1px rgb(0 0 0 / 8%);
+  --checkmark-image: url(&quot;data:image/svg+xml,%3Csvg xmlns=&#x27;http://www.w3.org/2000/svg&#x27; viewBox=&#x27;0 0 17 17&#x27;%3E%3Cpath d=&#x27;M12.8961 3.64101C13.1297 3.41418 13.4984 3.37523 13.7779 3.56581C14.0571 3.75635 14.1554 4.11331 14.0299 4.41347L13.9615 4.53847L7.71151 13.7045C7.59411 13.8767 7.4063 13.9877 7.19881 14.0072C6.99136 14.0267 6.78564 13.9533 6.63826 13.806L2.88826 10.056L2.79842 9.9457C2.6192 9.67407 2.64927 9.30496 2.88826 9.06581C3.12738 8.82669 3.49647 8.79676 3.76815 8.97597L3.8785 9.06581L7.03084 12.2182L12.8053 3.74941L12.8961 3.64101Z&#x27;/%3E%3C/svg%3E&quot;);
+
+  /* Legacy aliases; not part of the current agent contract. */
+  --viz-bg: transparent;
+  --viz-panel: var(--card);
+  --viz-border: var(--border);
+  --viz-text: var(--foreground);
+  --viz-muted: var(--muted-foreground);
+  --viz-accent: var(--primary);
+  --viz-accent-text: var(--primary-foreground);
+  --viz-accent-bg: var(--accent);
+  --viz-font-size: var(--font-size-base);
+  --viz-warning: var(--destructive);
+}
+
+:root[data-theme=&quot;light&quot;] {
+  color-scheme: light;
+}
+
+:root[data-theme=&quot;dark&quot;] {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html &gt; body {
+  /* Preserve MCP aliases for older inline renderers without creating :root cycles. */
+  --color-background-primary: var(
+    --background,
+    light-dark(rgb(255 255 255), rgb(24 24 24))
+  );
+  --color-text-primary: var(
+    --foreground,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --color-border-secondary: var(
+    --border,
+    light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%))
+  );
+
+  margin: 0;
+  padding: 5px;
+  color: var(--foreground);
+  background: transparent !important;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-normal);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+}
+
+a {
+  color: color-mix(in srgb, var(--viz-accent) 80%, var(--viz-text) 20%);
+  cursor: pointer;
+  font-weight: var(--font-weight-medium, 500);
+  text-decoration: none;
+  text-underline-offset: 2px;
+}
+
+a:is(:hover, :focus-visible) {
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 0.5px;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin-block: 0;
+}
+
+h1 {
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h2 {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h3,
+h4,
+h5,
+h6 {
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.3;
+}
+
+b,
+strong,
+th {
+  font-weight: var(--font-weight-medium);
+}
+
+code:not(pre code) {
+  display: inline;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  corner-shape: superellipse(1.5);
+  background: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  word-break: break-word;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--foreground);
+  font: inherit;
+  text-align: start;
+}
+
+.table :is(th, td) {
+  padding-block: 10px;
+  padding-inline: 0 24px;
+  overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--border);
+  text-align: start;
+  vertical-align: top;
+}
+
+.table-responsive &gt; .table :is(th, td) {
+  overflow-wrap: break-word;
+}
+
+.table :is(th, td):last-child {
+  padding-inline-end: 0;
+}
+
+.table :is(caption, thead th) {
+  font-weight: 600;
+}
+
+.table thead th {
+  padding-block: 8px;
+  border-bottom-color: color-mix(in srgb, var(--foreground) 16%, transparent);
+}
+
+.table tbody tr:last-child :is(th, td) {
+  border-bottom: 0;
+}
+
+.table.table-sm :is(th, td) {
+  padding-block: 6px;
+}
+
+.table.table-sm :is(th, td):not(:last-child) {
+  padding-inline-end: 16px;
+}
+
+.table :is(.text-end, [align=&quot;right&quot;]) {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.table :is(.text-center, [align=&quot;center&quot;]) {
+  text-align: center;
+}
+
+.table .text-nowrap {
+  white-space: nowrap;
+}
+
+#widget {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  background: transparent !important;
+}
+
+.card {
+  min-width: 0;
+  padding: 12px;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  border-radius: var(--radius-2xl);
+  corner-shape: superellipse(1.5);
+  color: var(--card-foreground);
+  background: var(--card);
+}
+
+#widget &gt; :not(.card) {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  left: 0;
+  width: max-content;
+  max-width: min(
+    20rem,
+    var(--tooltip-available-width, calc(100vw - 10px)),
+    calc(100vw - 10px)
+  );
+  max-height: min(
+    var(--tooltip-available-height, calc(100vh - 10px)),
+    calc(100vh - 10px)
+  );
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--popover-foreground);
+  background: var(--popover);
+  box-shadow: none;
+  font-size: var(--font-size-tooltip);
+  line-height: var(--line-height-tooltip);
+  overflow-wrap: break-word;
+  white-space: normal;
+  pointer-events: none;
+  user-select: none;
+}
+
+.viz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(max(180px, 24%), 1fr));
+  gap: 10px;
+}
+
+.viz-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.viz-stat-value {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+.viz-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.viz-badge {
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  color: var(--accent-foreground);
+  background: var(--accent);
+  font-weight: var(--font-weight-medium);
+}
+
+small,
+.text-small,
+.viz-badge {
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-small);
+}
+
+.text-muted {
+  color: var(--muted-foreground);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.viz-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.viz-controls &gt; .form-label {
+  display: grid;
+  min-width: min(100%, 260px);
+  flex: 1 1 280px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin-bottom: 0;
+}
+
+.viz-controls &gt; .form-label &gt; :is(.form-control, .form-range, .form-select) {
+  grid-column: 1 / -1;
+}
+
+.btn,
+.form-check-input,
+.form-control,
+.form-range,
+.form-select {
+  font: inherit;
+}
+
+.btn {
+  appearance: button;
+  display: inline-flex;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 8px;
+  -webkit-app-region: no-drag;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: var(--cursor-interaction, pointer);
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.btn:is(.btn-block, .viz-tile) {
+  inline-size: 100%;
+}
+
+.btn.viz-tile {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+a.btn {
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn-primary {
+  border-color: transparent;
+  color: var(--primary-foreground);
+  background: var(--foreground);
+  background-clip: padding-box;
+}
+
+.btn-primary .text-muted {
+  color: color-mix(in srgb, var(--primary-foreground) 50%, transparent);
+}
+
+.btn-primary:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 80%, transparent);
+  background-clip: padding-box;
+}
+
+.btn-ghost {
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.btn-ghost:not(:disabled):hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+[data-lucide] {
+  stroke-width: 1.6;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--foreground);
+}
+
+.form-control {
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--foreground);
+  background: var(--secondary);
+}
+
+.form-control::placeholder {
+  color: var(--muted-foreground);
+}
+
+.form-control[type=&quot;file&quot;] {
+  padding: 0;
+  overflow: hidden;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control[type=&quot;file&quot;]::file-selector-button {
+  min-height: 26px;
+  margin-right: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-right: 1px solid var(--input);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: inherit;
+  font: inherit;
+}
+
+.form-control[type=&quot;file&quot;]:not(:disabled):hover::file-selector-button {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-control-color[type=&quot;color&quot;] {
+  width: 40px;
+  height: 28px;
+  padding: 3px;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control-color[type=&quot;color&quot;]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.form-control-color[type=&quot;color&quot;]::-webkit-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius-lg) - 4px);
+  corner-shape: superellipse(1.5);
+}
+
+textarea.form-control {
+  height: auto;
+  min-height: 72px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.form-control:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-control:disabled,
+.form-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.form-select {
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 32px 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--foreground);
+  background-color: var(--secondary);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted-foreground) 50%),
+    linear-gradient(135deg, var(--muted-foreground) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 50%,
+    calc(100% - 10px) 50%;
+  background-repeat: no-repeat;
+  background-size: 4px 4px;
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-select:not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-select:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-check {
+  display: flex;
+  min-height: 20px;
+  align-items: center;
+  gap: 6px;
+}
+
+.form-check-input {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin: 0;
+  border: 1px solid var(--input);
+  color: var(--primary-foreground);
+  background-color: transparent;
+  cursor: var(--cursor-interaction, default);
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    box-shadow 150ms;
+}
+
+.form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;] {
+  border-color: var(--input);
+  border-radius: var(--radius-sm);
+  corner-shape: superellipse(1.5);
+  background-color: var(--secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input:not(:disabled):not(:checked):hover {
+  background-color: var(--card);
+}
+
+.form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;]:checked {
+  border-color: var(--primary);
+  background-color: var(--primary);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input[type=&quot;checkbox&quot;]:checked::before {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--primary-foreground);
+  content: &quot;&quot;;
+  mask: var(--checkmark-image) center / 12px 12px no-repeat;
+}
+
+.form-check-input[type=&quot;radio&quot;] {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+}
+
+.form-check-input[type=&quot;radio&quot;]:checked {
+  border: 2px solid var(--primary);
+  background:
+    radial-gradient(circle, var(--primary-foreground) 0 2.5px, transparent 3px),
+    var(--primary);
+}
+
+.form-check:not(.form-switch) .form-check-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+}
+
+.form-switch .form-check-input:disabled,
+.form-switch .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.form-check-label {
+  color: var(--foreground);
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-switch .form-check-input {
+  position: relative;
+  width: 32px;
+  height: 20px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  box-shadow: none;
+  transition: background-color 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid light-dark(var(--primary-foreground), var(--foreground));
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+  box-shadow: var(--shadow-sm);
+  content: &quot;&quot;;
+  transform: translate(2px, -50%);
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input:checked {
+  background: var(--primary);
+}
+
+.form-switch .form-check-input:checked::before {
+  transform: translate(14px, -50%);
+}
+
+.form-switch .form-check-input:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.form-range {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 28px;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  outline: none;
+  border: 0;
+  accent-color: var(--primary);
+  background: linear-gradient(
+      color-mix(in srgb, var(--foreground) 7%, transparent),
+      color-mix(in srgb, var(--foreground) 7%, transparent)
+    )
+    center / 100% 2px no-repeat;
+}
+
+.form-range::-webkit-slider-runnable-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-webkit-slider-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range::-moz-range-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-moz-range-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.btn:not(.btn-primary, .viz-tile):is(
+    [aria-pressed=&quot;true&quot;],
+    [aria-selected=&quot;true&quot;],
+    .is-selected
+  ) {
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
+.btn.viz-tile:is([aria-pressed=&quot;true&quot;], [aria-selected=&quot;true&quot;], .is-selected) {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+#widget &gt; svg {
+  width: 100%;
+}
+
+/* Model-authored chart rules can otherwise stretch icons after these styles load. */
+svg.lucide {
+  display: block;
+  width: 16px !important;
+  height: 16px !important;
+  flex: none;
+  margin: 0 !important;
+  stroke-width: 1.6;
+}
+
+.text-warning,
+.text-destructive {
+  color: var(--destructive);
+}
+
+html&gt;body{padding:0}&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;div id=&quot;eyelink-drift-viz&quot;&gt;
+  &lt;h2&gt;EyeLink 校准漂移与 trial 内平移修正&lt;/h2&gt;
+
+  &lt;div class=&quot;viz-grid&quot;&gt;
+    &lt;div class=&quot;card viz-stat&quot;&gt;
+      &lt;div class=&quot;text-muted&quot;&gt;原始刺激期误差中位数&lt;/div&gt;
+      &lt;div class=&quot;viz-stat-value&quot;&gt;1.26°&lt;/div&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;card viz-stat&quot;&gt;
+      &lt;div class=&quot;text-muted&quot;&gt;修正后误差中位数&lt;/div&gt;
+      &lt;div class=&quot;viz-stat-value&quot;&gt;0.87°&lt;/div&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;card viz-stat&quot;&gt;
+      &lt;div class=&quot;text-muted&quot;&gt;误差减小的成功 trial&lt;/div&gt;
+      &lt;div class=&quot;viz-stat-value&quot;&gt;67% &lt;span class=&quot;text-muted&quot;&gt;(89/133)&lt;/span&gt;&lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+
+  &lt;div class=&quot;viz-controls&quot;&gt;
+    &lt;label class=&quot;form-label&quot; for=&quot;eyelink-epoch-select&quot;&gt;显示时段
+      &lt;select class=&quot;form-select&quot; id=&quot;eyelink-epoch-select&quot;&gt;
+        &lt;option value=&quot;all&quot;&gt;全部成功 trial（133）&lt;/option&gt;
+        &lt;option value=&quot;early&quot;&gt;漂移前：trial &amp;lt; 41&lt;/option&gt;
+        &lt;option value=&quot;transition&quot;&gt;过渡期：trial 41–68&lt;/option&gt;
+        &lt;option value=&quot;drift&quot;&gt;持续偏差：trial ≥ 69&lt;/option&gt;
+      &lt;/select&gt;
+    &lt;/label&gt;
+    &lt;button type=&quot;button&quot; class=&quot;series-toggle&quot; data-series=&quot;raw&quot; aria-pressed=&quot;true&quot;&gt;
+      &lt;span class=&quot;legend-swatch raw-swatch&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;原始 gaze
+    &lt;/button&gt;
+    &lt;button type=&quot;button&quot; class=&quot;series-toggle&quot; data-series=&quot;corrected&quot; aria-pressed=&quot;true&quot;&gt;
+      &lt;span class=&quot;legend-swatch corrected-swatch&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;修正后 gaze
+    &lt;/button&gt;
+  &lt;/div&gt;
+
+  &lt;section aria-labelledby=&quot;eyelink-pair-title&quot;&gt;
+    &lt;h3 id=&quot;eyelink-pair-title&quot;&gt;刺激中心对齐后的 gaze 误差&lt;/h3&gt;
+    &lt;div class=&quot;text-small text-muted&quot; id=&quot;eyelink-pair-summary&quot;&gt;&lt;/div&gt;
+    &lt;div class=&quot;plot-host&quot; id=&quot;eyelink-pair-plot&quot;&gt;&lt;/div&gt;
+  &lt;/section&gt;
+
+  &lt;section aria-labelledby=&quot;eyelink-time-title&quot;&gt;
+    &lt;h3 id=&quot;eyelink-time-title&quot;&gt;Fixation 偏差随任务时间变化&lt;/h3&gt;
+    &lt;div class=&quot;text-small text-muted&quot;&gt;细点为每个成功 trial；实线为最近 15 个成功 trial 的二维偏差中位数长度。&lt;/div&gt;
+    &lt;div class=&quot;plot-host&quot; id=&quot;eyelink-time-plot&quot;&gt;&lt;/div&gt;
+  &lt;/section&gt;
+
+  &lt;div class=&quot;tooltip&quot; role=&quot;tooltip&quot; aria-hidden=&quot;true&quot;&gt;&lt;/div&gt;
+&lt;/div&gt;
+
+&lt;style&gt;
+  #eyelink-drift-viz {
+    color-scheme: light;
+    background: var(--background);
+    position: relative;
+    width: 100%;
+    color: var(--foreground);
+  }
+  #eyelink-drift-viz .viz-grid {
+    margin-block: 12px;
+  }
+  #eyelink-drift-viz .viz-controls {
+    margin-block: 12px 18px;
+  }
+  #eyelink-drift-viz .form-label {
+    min-width: min(100%, 250px);
+  }
+  #eyelink-drift-viz .series-toggle {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: var(--foreground);
+    padding: 4px 6px;
+    cursor: pointer;
+  }
+  #eyelink-drift-viz .series-toggle[aria-pressed=&quot;false&quot;] {
+    color: var(--muted-foreground);
+    text-decoration: line-through;
+  }
+  #eyelink-drift-viz .legend-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-right: 6px;
+    border-radius: 50%;
+    vertical-align: -1px;
+  }
+  #eyelink-drift-viz .raw-swatch { background: var(--viz-series-1); }
+  #eyelink-drift-viz .corrected-swatch { background: var(--viz-series-2); }
+  #eyelink-drift-viz section + section {
+    margin-top: 24px;
+  }
+  #eyelink-drift-viz .plot-host {
+    width: 100%;
+    min-height: 340px;
+  }
+  #eyelink-drift-viz .plot-host.timeline {
+    min-height: 280px;
+  }
+  #eyelink-drift-viz .chart-svg {
+    display: block;
+    width: 100%;
+    overflow: visible;
+  }
+  #eyelink-drift-viz .chart-frame,
+  #eyelink-drift-viz .axis path,
+  #eyelink-drift-viz .axis line {
+    fill: none;
+    stroke: var(--border);
+  }
+  #eyelink-drift-viz .grid line {
+    stroke: var(--border);
+    stroke-opacity: 0.45;
+  }
+  #eyelink-drift-viz .grid path { display: none; }
+  #eyelink-drift-viz .axis text,
+  #eyelink-drift-viz .axis-title,
+  #eyelink-drift-viz .annotation,
+  #eyelink-drift-viz .target-label {
+    fill: var(--foreground);
+    font-size: 12px;
+  }
+  #eyelink-drift-viz .pair-line {
+    stroke: var(--muted-foreground);
+    stroke-width: 0.8;
+    stroke-opacity: 0.34;
+  }
+  #eyelink-drift-viz .raw-point {
+    fill: var(--viz-series-1);
+    stroke: var(--background);
+    stroke-width: 0.7;
+  }
+  #eyelink-drift-viz .corrected-point {
+    fill: var(--viz-series-2);
+    stroke: var(--background);
+    stroke-width: 0.7;
+  }
+  #eyelink-drift-viz .target-mark {
+    fill: var(--foreground);
+    stroke: var(--background);
+    stroke-width: 1;
+  }
+  #eyelink-drift-viz .fix-point {
+    fill: var(--viz-series-3);
+    opacity: 0.42;
+  }
+  #eyelink-drift-viz .rolling-line {
+    fill: none;
+    stroke: var(--viz-series-3);
+    stroke-width: 2;
+  }
+  #eyelink-drift-viz .threshold-line {
+    stroke: var(--muted-foreground);
+    stroke-width: 1;
+    stroke-dasharray: 4 4;
+  }
+  #eyelink-drift-viz .change-line {
+    stroke: var(--viz-series-4);
+    stroke-width: 1.2;
+  }
+  #eyelink-drift-viz .sustained-line {
+    stroke: var(--viz-series-5);
+    stroke-width: 1.2;
+  }
+  #eyelink-drift-viz .hit-overlay {
+    fill: transparent;
+    pointer-events: all;
+  }
+  #eyelink-drift-viz .tooltip {
+    position: absolute;
+    z-index: 10;
+    pointer-events: none;
+    display: none;
+    max-width: 280px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--popover);
+    color: var(--popover-foreground);
+    font-size: 12px;
+  }
+  @media (max-width: 520px) {
+    #eyelink-drift-viz .plot-host { min-height: 300px; }
+    #eyelink-drift-viz .plot-host.timeline { min-height: 260px; }
+  }
+&lt;/style&gt;
+
+&lt;script&gt;
+(() =&gt; {
+  const root = document.getElementById(&quot;eyelink-drift-viz&quot;);
+  const data = [{&quot;trial&quot;:1,&quot;minute&quot;:0.4586,&quot;stim_x&quot;:12.0,&quot;stim_y&quot;:-4.0,&quot;fix_ex&quot;:-0.3408,&quot;fix_ey&quot;:0.1899,&quot;raw_ex&quot;:-0.3345,&quot;raw_ey&quot;:0.1751,&quot;cor_ex&quot;:0.0063,&quot;cor_ey&quot;:-0.0147,&quot;raw_norm&quot;:0.3776,&quot;cor_norm&quot;:0.016,&quot;roll_fix_x&quot;:null,&quot;roll_fix_y&quot;:null,&quot;roll_fix_norm&quot;:null},{&quot;trial&quot;:2,&quot;minute&quot;:0.5397,&quot;stim_x&quot;:0.0,&quot;stim_y&quot;:-1.0,&quot;fix_ex&quot;:-0.7062,&quot;fix_ey&quot;:0.6581,&quot;raw_ex&quot;:-0.1043,&quot;raw_ey&quot;:0.4466,&quot;cor_ex&quot;:0.6019,&quot;cor_ey&quot;:-0.2115,&quot;raw_norm&quot;:0.4586,&quot;cor_norm&quot;:0.638,&quot;roll_fix_x&quot;:null,&quot;roll_fix_y&quot;:null,&quot;roll_fix_norm&quot;:null},{&quot;trial&quot;:3,&quot;minute&quot;:0.6306,&quot;stim_x&quot;:3.0,&quot;stim_y&quot;:-10.0,&quot;fix_ex&quot;:-0.2317,&quot;fix_ey&quot;:0.4839,&quot;raw_ex&quot;:-0.1201,&quot;raw_ey&quot;:-0.2018,&quot;cor_ex&quot;:0.1116,&quot;cor_ey&quot;:-0.6857,&quot;raw_norm&quot;:0.2348,&quot;cor_norm&quot;:0.6947,&quot;roll_fix_x&quot;:null,&quot;roll_fix_y&quot;:null,&quot;roll_fix_norm&quot;:null},{&quot;trial&quot;:4,&quot;minute&quot;:0.7131,&quot;stim_x&quot;:12.0,&quot;stim_y&quot;:-10.0,&quot;fix_ex&quot;:0.0525,&quot;fix_ey&quot;:0.0384,&quot;raw_ex&quot;:0.0161,&quot;raw_ey&quot;:-0.2144,&quot;cor_ex&quot;:-0.0365,&quot;cor_ey&quot;:-0.2529,&quot;raw_norm&quot;:0.215,&quot;cor_norm&quot;:0.2555,&quot;roll_fix_x&quot;:null,&quot;roll_fix_y&quot;:null,&quot;roll_fix_norm&quot;:null},{&quot;trial&quot;:5,&quot;minute&quot;:0.7955,&quot;stim_x&quot;:9.0,&quot;stim_y&quot;:8.0,&quot;fix_ex&quot;:0.1222,&quot;fix_ey&quot;:-0.1421,&quot;raw_ex&quot;:-0.3034,&quot;raw_ey&quot;:-0.0594,&quot;cor_ex&quot;:-0.4256,&quot;cor_ey&quot;:0.0827,&quot;raw_norm&quot;:0.3092,&quot;cor_norm&quot;:0.4335,&quot;roll_fix_x&quot;:null,&quot;roll_fix_y&quot;:null,&quot;roll_fix_norm&quot;:null},{&quot;trial&quot;:8,&quot;minute&quot;:1.0187,&quot;stim_x&quot;:12.0,&quot;stim_y&quot;:-1.0,&quot;fix_ex&quot;:0.1437,&quot;fix_ey&quot;:-0.2654,&quot;raw_ex&quot;:-0.6294,&quot;raw_ey&quot;:-0.048,&quot;cor_ex&quot;:-0.7731,&quot;cor_ey&quot;:0.2175,&quot;raw_norm&quot;:0.6312,&quot;cor_norm&quot;:0.8031,&quot;roll_fix_x&quot;:null,&quot;roll_fix_y&quot;:null,&quot;roll_fix_norm&quot;:null},{&quot;trial&quot;:9,&quot;minute&quot;:1.0918,&quot;stim_x&quot;:9.0,&quot;stim_y&quot;:-10.0,&quot;fix_ex&quot;:0.3148,&quot;fix_ey&quot;:-0.1816,&quot;raw_ex&quot;:-0.2133,&quot;raw_ey&quot;:1.2391,&quot;cor_ex&quot;:-0.5281,&quot;cor_ey&quot;:1.4207,&quot;raw_norm&quot;:1.2574,&quot;cor_norm&quot;:1.5157,&quot;roll_fix_x&quot;:null,&quot;roll_fix_y&quot;:null,&quot;roll_fix_norm&quot;:null},{&quot;trial&quot;:10,&quot;minute&quot;:1.1641,&quot;stim_x&quot;:9.0,&quot;stim_y&quot;:-1.0,&quot;fix_ex&quot;:-0.0176,&quot;fix_ey&quot;:-0.1151,&quot;raw_ex&quot;:-0.5537,&quot;raw_ey&quot;:0.2759,&quot;cor_ex&quot;:-0.5361,&quot;cor_ey&quot;:0.391,&quot;raw_norm&quot;:0.6186,&quot;cor_norm&quot;:0.6635,&quot;roll_fix_x&quot;:null,&quot;roll_fix_y&quot;:null,&quot;roll_fix_norm&quot;:null},{&quot;trial&quot;:11,&quot;minute&quot;:1.2411,&quot;stim_x&quot;:0.0,&quot;stim_y&quot;:-4.0,&quot;fix_ex&quot;:0.9132,&quot;fix_ey&quot;:-0.2932,&quot;raw_ex&quot;:0.3387,&quot;raw_ey&quot;:1.6678,&quot;cor_ex&quot;:-0.5746,&quot;cor_ey&quot;:1.961,&quot;raw_norm&quot;:1.7018,&quot;cor_norm&quot;:2.0434,&quot;roll_fix_x&quot;:null,&quot;roll_fix_y&quot;:null,&quot;roll_fix_norm&quot;:null},{&quot;trial&quot;:12,&quot;minute&quot;:1.3162,&quot;stim_x&quot;:-6.0,&quot;stim_y&quot;:-1.0,&quot;fix_ex&quot;:0.4436,&quot;fix_ey&quot;:-0.0799,&quot;raw_ex&quot;:0.4773,&quot;raw_ey&quot;:-0.297,&quot;cor_ex&quot;:0.0338,&quot;cor_ey&quot;:-0.2171,&quot;raw_norm&quot;:0.5622,&quot;cor_norm&quot;:0.2197,&quot;roll_fix_x&quot;:null,&quot;roll_fix_y&quot;:null,&quot;roll_fix_norm&quot;:null},{&quot;trial&quot;:13,&quot;minute&quot;:1.4124,&quot;stim_x&quot;:9.0,&quot;stim_y&quot;:2.0,&quot;fix_ex&quot;:0.8726,&quot;fix_ey&quot;:-0.5457,&quot;raw_ex&quot;:-0.3746,&quot;raw_ey&quot;:0.3866,&quot;cor_ex&quot;:-1.2471,&quot;cor_ey&quot;:0.9323,&quot;raw_norm&quot;:0.5383,&quot;cor_norm&quot;:1.5571,&quot;roll_fix_x&quot;:null,&quot;roll_fix_y&quot;:null,&quot;roll_fix_norm&quot;:null},{&quot;trial&quot;:14,&quot;minute&quot;:1.4905,&quot;stim_x&quot;:-6.0,&quot;stim_y&quot;:-7.0,&quot;fix_ex&quot;:0.4278,&quot;fix_ey&quot;:-0.2454,&quot;raw_ex&quot;:0.3928,&quot;raw_ey&quot;:2.1607,&quot;cor_ex&quot;:-0.035,&quot;cor_ey&quot;:2.4062,&quot;raw_norm&quot;:2.1961,&quot;cor_norm&quot;:2.4064,&quot;roll_fix_x&quot;:null,&quot;roll_fix_y&quot;:null,&quot;roll_fix_norm&quot;:null},{&quot;trial&quot;:16,&quot;minute&quot;:1.6523,&quot;stim_x&quot;:-6.0,&quot;stim_y&quot;:5.0,&quot;fix_ex&quot;:-0.1659,&quot;fix_ey&quot;:-0.0214,&quot;raw_ex&quot;:-0.0704,&quot;raw_ey&quot;:-0.1819,&quot;cor_ex&quot;:0.0956,&quot;cor_ey&quot;:-0.1605,&quot;raw_norm&quot;:0.195,&quot;cor_norm&quot;:0.1868,&quot;roll_fix_x&quot;:null,&quot;roll_fix_y&quot;:null,&quot;roll_fix_norm&quot;:null},{&quot;trial&quot;:17,&quot;minute&quot;:1.7308,&quot;stim_x&quot;:9.0,&quot;stim_y&quot;:-1.0,&quot;fix_ex&quot;:0.4366,&quot;fix_ey&quot;:-0.1019,&quot;raw_ex&quot;:-0.0568,&quot;raw_ey&quot;:-0.3212,&quot;cor_ex&quot;:-0.4934,&quot;cor_ey&quot;:-0.2193,&quot;raw_norm&quot;:0.3261,&quot;cor_norm&quot;:0.5399,&quot;roll_fix_x&quot;:null,&quot;roll_fix_y&quot;:null,&quot;roll_fix_norm&quot;:null},{&quot;trial&quot;:19,&quot;minute&quot;:1.8975,&quot;stim_x&quot;:3.0,&quot;stim_y&quot;:2.0,&quot;fix_ex&quot;:0.5866,&quot;fix_ey&quot;:0.078,&quot;raw_ex&quot;:0.2269,&quot;raw_ey&quot;:-0.0304,&quot;cor_ex&quot;:-0.3597,&quot;cor_ey&quot;:-0.1084,&quot;raw_norm&quot;:0.229,&quot;cor_norm&quot;:0.3756,&quot;roll_fix_x&quot;:0.1437,&quot;roll_fix_y&quot;:-0.1019,&quot;roll_fix_norm&quot;:0.1762},{&quot;trial&quot;:24,&quot;minute&quot;:2.3068,&quot;stim_x&quot;:3.0,&quot;stim_y&quot;:-7.0,&quot;fix_ex&quot;:0.1032,&quot;fix_ey&quot;:-0.1578,&quot;raw_ex&quot;:0.4581,&quot;raw_ey&quot;:1.311,&quot;cor_ex&quot;:0.3549,&quot;cor_ey&quot;:1.4689,&quot;raw_norm&quot;:1.3888,&quot;cor_norm&quot;:1.5111,&quot;roll_fix_x&quot;:0.1437,&quot;roll_fix_y&quot;:-0.1151,&quot;roll_fix_norm&quot;:0.1841},{&quot;trial&quot;:25,&quot;minute&quot;:2.3829,&quot;stim_x&quot;:6.0,&quot;stim_y&quot;:-10.0,&quot;fix_ex&quot;:-0.1529,&quot;fix_ey&quot;:-0.0559,&quot;raw_ex&quot;:-0.4759,&quot;raw_ey&quot;:0.7762,&quot;cor_ex&quot;:-0.3229,&quot;cor_ey&quot;:0.8321,&quot;raw_norm&quot;:0.9105,&quot;cor_norm&quot;:0.8926,&quot;roll_fix_x&quot;:0.1437,&quot;roll_fix_y&quot;:-0.1151,&quot;roll_fix_norm&quot;:0.1841},{&quot;trial&quot;:27,&quot;minute&quot;:2.5504,&quot;stim_x&quot;:3.0,&quot;stim_y&quot;:-4.0,&quot;fix_ex&quot;:1.4532,&quot;fix_ey&quot;:-0.5848,&quot;raw_ex&quot;:0.3592,&quot;raw_ey&quot;:1.7358,&quot;cor_ex&quot;:-1.094,&quot;cor_ey&quot;:2.3205,&quot;raw_norm&quot;:1.7725,&quot;cor_norm&quot;:2.5655,&quot;roll_fix_x&quot;:0.3148,&quot;roll_fix_y&quot;:-0.1421,&quot;roll_fix_norm&quot;:0.3454},{&quot;trial&quot;:28,&quot;minute&quot;:2.6282,&quot;stim_x&quot;:12.0,&quot;stim_y&quot;:5.0,&quot;fix_ex&quot;:0.7192,&quot;fix_ey&quot;:-0.6151,&quot;raw_ex&quot;:-0.6266,&quot;raw_ey&quot;:-0.3279,&quot;cor_ex&quot;:-1.3458,&quot;cor_ey&quot;:0.2872,&quot;raw_norm&quot;:0.7073,&quot;cor_norm&quot;:1.3761,&quot;roll_fix_x&quot;:0.4278,&quot;roll_fix_y&quot;:-0.1578,&quot;roll_fix_norm&quot;:0.456},{&quot;trial&quot;:29,&quot;minute&quot;:2.7041,&quot;stim_x&quot;:12.0,&quot;stim_y&quot;:8.0,&quot;fix_ex&quot;:0.3315,&quot;fix_ey&quot;:-0.0992,&quot;raw_ex&quot;:0.2372,&quot;raw_ey&quot;:0.3476,&quot;cor_ex&quot;:-0.0944,&quot;cor_ey&quot;:0.4469,&quot;raw_norm&quot;:0.4208,&quot;cor_norm&quot;:0.4567,&quot;roll_fix_x&quot;:0.4278,&quot;roll_fix_y&quot;:-0.1578,&quot;roll_fix_norm&quot;:0.456},{&quot;trial&quot;:30,&quot;minute&quot;:2.7797,&quot;stim_x&quot;:6.0,&quot;stim_y&quot;:-1.0,&quot;fix_ex&quot;:0.3128,&quot;fix_ey&quot;:-0.3624,&quot;raw_ex&quot;:0.3369,&quot;raw_ey&quot;:-0.5016,&quot;cor_ex&quot;:0.0242,&quot;cor_ey&quot;:-0.1391,&quot;raw_norm&quot;:0.6042,&quot;cor_norm&quot;:0.1412,&quot;roll_fix_x&quot;:0.4278,&quot;roll_fix_y&quot;:-0.1578,&quot;roll_fix_norm&quot;:0.456},{&quot;trial&quot;:31,&quot;minute&quot;:2.8518,&quot;stim_x&quot;:9.0,&quot;stim_y&quot;:5.0,&quot;fix_ex&quot;:1.2107,&quot;fix_ey&quot;:-0.8046,&quot;raw_ex&quot;:-0.5077,&quot;raw_ey&quot;:-0.3006,&quot;cor_ex&quot;:-1.7184,&quot;cor_ey&quot;:0.504,&quot;raw_norm&quot;:0.5901,&quot;cor_norm&quot;:1.7908,&quot;roll_fix_x&quot;:0.4366,&quot;roll_fix_y&quot;:-0.1578,&quot;roll_fix_norm&quot;:0.4642},{&quot;trial&quot;:32,&quot;minute&quot;:2.9286,&quot;stim_x&quot;:-6.0,&quot;stim_y&quot;:-1.0,&quot;fix_ex&quot;:0.7389,&quot;fix_ey&quot;:0.2084,&quot;raw_ex&quot;:0.6767,&quot;raw_ey&quot;:0.0444,&quot;cor_ex&quot;:-0.0621,&quot;cor_ey&quot;:-0.1639,&quot;raw_norm&quot;:0.6782,&quot;cor_norm&quot;:0.1753,&quot;roll_fix_x&quot;:0.4436,&quot;roll_fix_y&quot;:-0.1578,&quot;roll_fix_norm&quot;:0.4708},{&quot;trial&quot;:41,&quot;minute&quot;:3.773,&quot;stim_x&quot;:-3.0,&quot;stim_y&quot;:-7.0,&quot;fix_ex&quot;:1.0535,&quot;fix_ey&quot;:1.3768,&quot;raw_ex&quot;:-0.1749,&quot;raw_ey&quot;:0.6432,&quot;cor_ex&quot;:-1.2284,&quot;cor_ey&quot;:-0.7336,&quot;raw_norm&quot;:0.6666,&quot;cor_norm&quot;:1.4308,&quot;roll_fix_x&quot;:0.4436,&quot;roll_fix_y&quot;:-0.1019,&quot;roll_fix_norm&quot;:0.4551},{&quot;trial&quot;:43,&quot;minute&quot;:4.0876,&quot;stim_x&quot;:-6.0,&quot;stim_y&quot;:-1.0,&quot;fix_ex&quot;:0.7406,&quot;fix_ey&quot;:1.0011,&quot;raw_ex&quot;:0.9012,&quot;raw_ey&quot;:-0.1913,&quot;cor_ex&quot;:0.1607,&quot;cor_ey&quot;:-1.1923,&quot;raw_norm&quot;:0.9213,&quot;cor_norm&quot;:1.2031,&quot;roll_fix_x&quot;:0.5866,&quot;roll_fix_y&quot;:-0.1019,&quot;roll_fix_norm&quot;:0.5954},{&quot;trial&quot;:47,&quot;minute&quot;:4.4066,&quot;stim_x&quot;:3.0,&quot;stim_y&quot;:8.0,&quot;fix_ex&quot;:0.9501,&quot;fix_ey&quot;:0.8399,&quot;raw_ex&quot;:0.6318,&quot;raw_ey&quot;:0.6754,&quot;cor_ex&quot;:-0.3182,&quot;cor_ey&quot;:-0.1645,&quot;raw_norm&quot;:0.9249,&quot;cor_norm&quot;:0.3582,&quot;roll_fix_x&quot;:0.5866,&quot;roll_fix_y&quot;:-0.0992,&quot;roll_fix_norm&quot;:0.5949},{&quot;trial&quot;:54,&quot;minute&quot;:5.1587,&quot;stim_x&quot;:6.0,&quot;stim_y&quot;:5.0,&quot;fix_ex&quot;:-0.2742,&quot;fix_ey&quot;:1.223,&quot;raw_ex&quot;:-0.0155,&quot;raw_ey&quot;:0.4141,&quot;cor_ex&quot;:0.2587,&quot;cor_ey&quot;:-0.8089,&quot;raw_norm&quot;:0.4144,&quot;cor_norm&quot;:0.8492,&quot;roll_fix_x&quot;:0.5866,&quot;roll_fix_y&quot;:-0.0559,&quot;roll_fix_norm&quot;:0.5893},{&quot;trial&quot;:55,&quot;minute&quot;:5.2345,&quot;stim_x&quot;:6.0,&quot;stim_y&quot;:5.0,&quot;fix_ex&quot;:-0.3394,&quot;fix_ey&quot;:0.6828,&quot;raw_ex&quot;:0.4421,&quot;raw_ey&quot;:-0.0548,&quot;cor_ex&quot;:0.7815,&quot;cor_ey&quot;:-0.7376,&quot;raw_norm&quot;:0.4454,&quot;cor_norm&quot;:1.0746,&quot;roll_fix_x&quot;:0.5866,&quot;roll_fix_y&quot;:-0.0559,&quot;roll_fix_norm&quot;:0.5893},{&quot;trial&quot;:58,&quot;minute&quot;:5.4717,&quot;stim_x&quot;:12.0,&quot;stim_y&quot;:2.0,&quot;fix_ex&quot;:0.6984,&quot;fix_ey&quot;:0.8844,&quot;raw_ex&quot;:0.6359,&quot;raw_ey&quot;:0.0886,&quot;cor_ex&quot;:-0.0625,&quot;cor_ey&quot;:-0.7958,&quot;raw_norm&quot;:0.6421,&quot;cor_norm&quot;:0.7983,&quot;roll_fix_x&quot;:0.6984,&quot;roll_fix_y&quot;:0.078,&quot;roll_fix_norm&quot;:0.7027},{&quot;trial&quot;:60,&quot;minute&quot;:5.6253,&quot;stim_x&quot;:3.0,&quot;stim_y&quot;:2.0,&quot;fix_ex&quot;:0.2334,&quot;fix_ey&quot;:0.7454,&quot;raw_ex&quot;:0.4741,&quot;raw_ey&quot;:0.6479,&quot;cor_ex&quot;:0.2407,&quot;cor_ey&quot;:-0.0974,&quot;raw_norm&quot;:0.8029,&quot;cor_norm&quot;:0.2597,&quot;roll_fix_x&quot;:0.6984,&quot;roll_fix_y&quot;:0.2084,&quot;roll_fix_norm&quot;:0.7288},{&quot;trial&quot;:68,&quot;minute&quot;:6.4336,&quot;stim_x&quot;:-3.0,&quot;stim_y&quot;:8.0,&quot;fix_ex&quot;:0.4806,&quot;fix_ey&quot;:2.4009,&quot;raw_ex&quot;:-0.7419,&quot;raw_ey&quot;:2.2593,&quot;cor_ex&quot;:-1.2225,&quot;cor_ey&quot;:-0.1416,&quot;raw_norm&quot;:2.378,&quot;cor_norm&quot;:1.2307,&quot;roll_fix_x&quot;:0.6984,&quot;roll_fix_y&quot;:0.6828,&quot;roll_fix_norm&quot;:0.9767},{&quot;trial&quot;:69,&quot;minute&quot;:6.5037,&quot;stim_x&quot;:0.0,&quot;stim_y&quot;:2.0,&quot;fix_ex&quot;:1.379,&quot;fix_ey&quot;:0.8833,&quot;raw_ex&quot;:1.2356,&quot;raw_ey&quot;:1.0023,&quot;cor_ex&quot;:-0.1435,&quot;cor_ey&quot;:0.1189,&quot;raw_norm&quot;:1.591,&quot;cor_norm&quot;:0.1863,&quot;roll_fix_x&quot;:0.7192,&quot;roll_fix_y&quot;:0.7454,&quot;roll_fix_norm&quot;:1.0358},{&quot;trial&quot;:70,&quot;minute&quot;:6.5732,&quot;stim_x&quot;:-6.0,&quot;stim_y&quot;:2.0,&quot;fix_ex&quot;:1.1437,&quot;fix_ey&quot;:1.2997,&quot;raw_ex&quot;:1.7958,&quot;raw_ey&quot;:-0.2509,&quot;cor_ex&quot;:0.6521,&quot;cor_ey&quot;:-1.5507,&quot;raw_norm&quot;:1.8132,&quot;cor_norm&quot;:1.6822,&quot;roll_fix_x&quot;:0.7192,&quot;roll_fix_y&quot;:0.8399,&quot;roll_fix_norm&quot;:1.1057},{&quot;trial&quot;:73,&quot;minute&quot;:6.8192,&quot;stim_x&quot;:3.0,&quot;stim_y&quot;:-7.0,&quot;fix_ex&quot;:0.7115,&quot;fix_ey&quot;:1.276,&quot;raw_ex&quot;:0.519,&quot;raw_ey&quot;:2.5792,&quot;cor_ex&quot;:-0.1925,&quot;cor_ey&quot;:1.3033,&quot;raw_norm&quot;:2.6309,&quot;cor_norm&quot;:1.3174,&quot;roll_fix_x&quot;:0.7115,&quot;roll_fix_y&quot;:0.8833,&quot;roll_fix_norm&quot;:1.1342},{&quot;trial&quot;:74,&quot;minute&quot;:6.8966,&quot;stim_x&quot;:-3.0,&quot;stim_y&quot;:-7.0,&quot;fix_ex&quot;:0.5123,&quot;fix_ey&quot;:0.2309,&quot;raw_ex&quot;:0.4712,&quot;raw_ey&quot;:0.9236,&quot;cor_ex&quot;:-0.0411,&quot;cor_ey&quot;:0.6927,&quot;raw_norm&quot;:1.0368,&quot;cor_norm&quot;:0.6939,&quot;roll_fix_x&quot;:0.7115,&quot;roll_fix_y&quot;:0.8833,&quot;roll_fix_norm&quot;:1.1342},{&quot;trial&quot;:75,&quot;minute&quot;:6.9702,&quot;stim_x&quot;:-6.0,&quot;stim_y&quot;:-7.0,&quot;fix_ex&quot;:0.9511,&quot;fix_ey&quot;:0.3826,&quot;raw_ex&quot;:1.6809,&quot;raw_ey&quot;:0.8662,&quot;cor_ex&quot;:0.7297,&quot;cor_ey&quot;:0.4836,&quot;raw_norm&quot;:1.8909,&quot;cor_norm&quot;:0.8754,&quot;roll_fix_x&quot;:0.7389,&quot;roll_fix_y&quot;:0.8833,&quot;roll_fix_norm&quot;:1.1516},{&quot;trial&quot;:76,&quot;minute&quot;:7.0509,&quot;stim_x&quot;:6.0,&quot;stim_y&quot;:5.0,&quot;fix_ex&quot;:0.4799,&quot;fix_ey&quot;:1.3307,&quot;raw_ex&quot;:-0.0422,&quot;raw_ey&quot;:1.6679,&quot;cor_ex&quot;:-0.522,&quot;cor_ey&quot;:0.3371,&quot;raw_norm&quot;:1.6684,&quot;cor_norm&quot;:0.6214,&quot;roll_fix_x&quot;:0.7115,&quot;roll_fix_y&quot;:0.8844,&quot;roll_fix_norm&quot;:1.1351},{&quot;trial&quot;:78,&quot;minute&quot;:7.1961,&quot;stim_x&quot;:-6.0,&quot;stim_y&quot;:-1.0,&quot;fix_ex&quot;:1.1603,&quot;fix_ey&quot;:0.6781,&quot;raw_ex&quot;:1.4892,&quot;raw_ey&quot;:0.566,&quot;cor_ex&quot;:0.329,&quot;cor_ey&quot;:-0.1121,&quot;raw_norm&quot;:1.5932,&quot;cor_norm&quot;:0.3475,&quot;roll_fix_x&quot;:0.7115,&quot;roll_fix_y&quot;:0.8844,&quot;roll_fix_norm&quot;:1.1351},{&quot;trial&quot;:82,&quot;minute&quot;:7.5208,&quot;stim_x&quot;:-6.0,&quot;stim_y&quot;:-10.0,&quot;fix_ex&quot;:1.5512,&quot;fix_ey&quot;:0.8663,&quot;raw_ex&quot;:0.4996,&quot;raw_ey&quot;:2.614,&quot;cor_ex&quot;:-1.0516,&quot;cor_ey&quot;:1.7478,&quot;raw_norm&quot;:2.6613,&quot;cor_norm&quot;:2.0398,&quot;roll_fix_x&quot;:0.7115,&quot;roll_fix_y&quot;:0.8833,&quot;roll_fix_norm&quot;:1.1342},{&quot;trial&quot;:88,&quot;minute&quot;:10.8681,&quot;stim_x&quot;:-6.0,&quot;stim_y&quot;:-1.0,&quot;fix_ex&quot;:-0.1697,&quot;fix_ey&quot;:1.6237,&quot;raw_ex&quot;:0.1516,&quot;raw_ey&quot;:1.3684,&quot;cor_ex&quot;:0.3213,&quot;cor_ey&quot;:-0.2553,&quot;raw_norm&quot;:1.3768,&quot;cor_norm&quot;:0.4104,&quot;roll_fix_x&quot;:0.6984,&quot;roll_fix_y&quot;:0.8833,&quot;roll_fix_norm&quot;:1.1261},{&quot;trial&quot;:90,&quot;minute&quot;:11.0309,&quot;stim_x&quot;:0.0,&quot;stim_y&quot;:5.0,&quot;fix_ex&quot;:0.6399,&quot;fix_ey&quot;:1.195,&quot;raw_ex&quot;:0.6073,&quot;raw_ey&quot;:1.1266,&quot;cor_ex&quot;:-0.0327,&quot;cor_ey&quot;:-0.0684,&quot;raw_norm&quot;:1.2798,&quot;cor_norm&quot;:0.0758,&quot;roll_fix_x&quot;:0.6399,&quot;roll_fix_y&quot;:0.8844,&quot;roll_fix_norm&quot;:1.0917},{&quot;trial&quot;:91,&quot;minute&quot;:11.1086,&quot;stim_x&quot;:-3.0,&quot;stim_y&quot;:8.0,&quot;fix_ex&quot;:0.4379,&quot;fix_ey&quot;:0.9144,&quot;raw_ex&quot;:-0.2021,&quot;raw_ey&quot;:0.8377,&quot;cor_ex&quot;:-0.64,&quot;cor_ey&quot;:-0.0768,&quot;raw_norm&quot;:0.8617,&quot;cor_norm&quot;:0.6446,&quot;roll_fix_x&quot;:0.6399,&quot;roll_fix_y&quot;:0.8844,&quot;roll_fix_norm&quot;:1.0917},{&quot;trial&quot;:92,&quot;minute&quot;:11.1964,&quot;stim_x&quot;:3.0,&quot;stim_y&quot;:-10.0,&quot;fix_ex&quot;:0.0527,&quot;fix_ey&quot;:0.6136,&quot;raw_ex&quot;:0.0246,&quot;raw_ey&quot;:1.6792,&quot;cor_ex&quot;:-0.0281,&quot;cor_ey&quot;:1.0656,&quot;raw_norm&quot;:1.6794,&quot;cor_norm&quot;:1.066,&quot;roll_fix_x&quot;:0.6399,&quot;roll_fix_y&quot;:0.8844,&quot;roll_fix_norm&quot;:1.0917},{&quot;trial&quot;:93,&quot;minute&quot;:11.2717,&quot;stim_x&quot;:3.0,&quot;stim_y&quot;:-10.0,&quot;fix_ex&quot;:0.1477,&quot;fix_ey&quot;:0.8134,&quot;raw_ex&quot;:-0.1063,&quot;raw_ey&quot;:0.4844,&quot;cor_ex&quot;:-0.254,&quot;cor_ey&quot;:-0.329,&quot;raw_norm&quot;:0.496,&quot;cor_norm&quot;:0.4156,&quot;roll_fix_x&quot;:0.5123,&quot;roll_fix_y&quot;:0.8833,&quot;roll_fix_norm&quot;:1.0211},{&quot;trial&quot;:94,&quot;minute&quot;:11.3441,&quot;stim_x&quot;:0.0,&quot;stim_y&quot;:-7.0,&quot;fix_ex&quot;:0.0467,&quot;fix_ey&quot;:0.8818,&quot;raw_ex&quot;:-0.1991,&quot;raw_ey&quot;:1.2503,&quot;cor_ex&quot;:-0.2458,&quot;cor_ey&quot;:0.3684,&quot;raw_norm&quot;:1.266,&quot;cor_norm&quot;:0.4429,&quot;roll_fix_x&quot;:0.5123,&quot;roll_fix_y&quot;:0.8833,&quot;roll_fix_norm&quot;:1.0211},{&quot;trial&quot;:95,&quot;minute&quot;:11.419,&quot;stim_x&quot;:9.0,&quot;stim_y&quot;:8.0,&quot;fix_ex&quot;:-0.1231,&quot;fix_ey&quot;:-0.0081,&quot;raw_ex&quot;:-1.1797,&quot;raw_ey&quot;:0.3564,&quot;cor_ex&quot;:-1.0566,&quot;cor_ey&quot;:0.3645,&quot;raw_norm&quot;:1.2323,&quot;cor_norm&quot;:1.1177,&quot;roll_fix_x&quot;:0.5123,&quot;roll_fix_y&quot;:0.8818,&quot;roll_fix_norm&quot;:1.0198},{&quot;trial&quot;:96,&quot;minute&quot;:11.4896,&quot;stim_x&quot;:-6.0,&quot;stim_y&quot;:8.0,&quot;fix_ex&quot;:0.1822,&quot;fix_ey&quot;:0.7038,&quot;raw_ex&quot;:0.444,&quot;raw_ey&quot;:0.4143,&quot;cor_ex&quot;:0.2618,&quot;cor_ey&quot;:-0.2895,&quot;raw_norm&quot;:0.6072,&quot;cor_norm&quot;:0.3903,&quot;roll_fix_x&quot;:0.4799,&quot;roll_fix_y&quot;:0.8663,&quot;roll_fix_norm&quot;:0.9903},{&quot;trial&quot;:97,&quot;minute&quot;:11.5585,&quot;stim_x&quot;:0.0,&quot;stim_y&quot;:8.0,&quot;fix_ex&quot;:0.1606,&quot;fix_ey&quot;:0.3553,&quot;raw_ex&quot;:-0.0469,&quot;raw_ey&quot;:0.9226,&quot;cor_ex&quot;:-0.2075,&quot;cor_ey&quot;:0.5674,&quot;raw_norm&quot;:0.9238,&quot;cor_norm&quot;:0.6041,&quot;roll_fix_x&quot;:0.4379,&quot;roll_fix_y&quot;:0.8134,&quot;roll_fix_norm&quot;:0.9238},{&quot;trial&quot;:98,&quot;minute&quot;:11.6522,&quot;stim_x&quot;:-6.0,&quot;stim_y&quot;:8.0,&quot;fix_ex&quot;:0.3587,&quot;fix_ey&quot;:0.6615,&quot;raw_ex&quot;:0.8078,&quot;raw_ey&quot;:0.5625,&quot;cor_ex&quot;:0.449,&quot;cor_ey&quot;:-0.099,&quot;raw_norm&quot;:0.9843,&quot;cor_norm&quot;:0.4598,&quot;roll_fix_x&quot;:0.3587,&quot;roll_fix_y&quot;:0.7038,&quot;roll_fix_norm&quot;:0.79},{&quot;trial&quot;:107,&quot;minute&quot;:12.3716,&quot;stim_x&quot;:0.0,&quot;stim_y&quot;:-1.0,&quot;fix_ex&quot;:0.4662,&quot;fix_ey&quot;:1.2765,&quot;raw_ex&quot;:-0.1402,&quot;raw_ey&quot;:1.758,&quot;cor_ex&quot;:-0.6064,&quot;cor_ey&quot;:0.4815,&quot;raw_norm&quot;:1.7636,&quot;cor_norm&quot;:0.7743,&quot;roll_fix_x&quot;:0.3587,&quot;roll_fix_y&quot;:0.8134,&quot;roll_fix_norm&quot;:0.889},{&quot;trial&quot;:109,&quot;minute&quot;:12.5342,&quot;stim_x&quot;:-6.0,&quot;stim_y&quot;:2.0,&quot;fix_ex&quot;:0.7299,&quot;fix_ey&quot;:1.4647,&quot;raw_ex&quot;:0.8582,&quot;raw_ey&quot;:0.4362,&quot;cor_ex&quot;:0.1283,&quot;cor_ey&quot;:-1.0285,&quot;raw_norm&quot;:0.9627,&quot;cor_norm&quot;:1.0365,&quot;roll_fix_x&quot;:0.3587,&quot;roll_fix_y&quot;:0.8663,&quot;roll_fix_norm&quot;:0.9376},{&quot;trial&quot;:111,&quot;minute&quot;:12.7008,&quot;stim_x&quot;:12.0,&quot;stim_y&quot;:8.0,&quot;fix_ex&quot;:0.3288,&quot;fix_ey&quot;:0.9078,&quot;raw_ex&quot;:-0.8775,&quot;raw_ey&quot;:-0.2244,&quot;cor_ex&quot;:-1.2063,&quot;cor_ey&quot;:-1.1323,&quot;raw_norm&quot;:0.9057,&quot;cor_norm&quot;:1.6545,&quot;roll_fix_x&quot;:0.3288,&quot;roll_fix_y&quot;:0.8663,&quot;roll_fix_norm&quot;:0.9266},{&quot;trial&quot;:114,&quot;minute&quot;:12.9493,&quot;stim_x&quot;:9.0,&quot;stim_y&quot;:-1.0,&quot;fix_ex&quot;:1.604,&quot;fix_ey&quot;:1.2314,&quot;raw_ex&quot;:1.4613,&quot;raw_ey&quot;:1.3221,&quot;cor_ex&quot;:-0.1427,&quot;cor_ey&quot;:0.0907,&quot;raw_norm&quot;:1.9706,&quot;cor_norm&quot;:0.1691,&quot;roll_fix_x&quot;:0.3288,&quot;roll_fix_y&quot;:0.8818,&quot;roll_fix_norm&quot;:0.9411},{&quot;trial&quot;:117,&quot;minute&quot;:15.8088,&quot;stim_x&quot;:12.0,&quot;stim_y&quot;:-10.0,&quot;fix_ex&quot;:0.2092,&quot;fix_ey&quot;:1.3245,&quot;raw_ex&quot;:0.1334,&quot;raw_ey&quot;:0.9116,&quot;cor_ex&quot;:-0.0758,&quot;cor_ey&quot;:-0.4129,&quot;raw_norm&quot;:0.9213,&quot;cor_norm&quot;:0.4198,&quot;roll_fix_x&quot;:0.2092,&quot;roll_fix_y&quot;:0.9078,&quot;roll_fix_norm&quot;:0.9316},{&quot;trial&quot;:118,&quot;minute&quot;:15.8859,&quot;stim_x&quot;:9.0,&quot;stim_y&quot;:-1.0,&quot;fix_ex&quot;:0.4795,&quot;fix_ey&quot;:1.0216,&quot;raw_ex&quot;:-0.3075,&quot;raw_ey&quot;:1.0688,&quot;cor_ex&quot;:-0.787,&quot;cor_ey&quot;:0.0472,&quot;raw_norm&quot;:1.1122,&quot;cor_norm&quot;:0.7884,&quot;roll_fix_x&quot;:0.3288,&quot;roll_fix_y&quot;:0.9078,&quot;roll_fix_norm&quot;:0.9656},{&quot;trial&quot;:119,&quot;minute&quot;:15.9615,&quot;stim_x&quot;:9.0,&quot;stim_y&quot;:-7.0,&quot;fix_ex&quot;:0.5433,&quot;fix_ey&quot;:0.7605,&quot;raw_ex&quot;:-0.1382,&quot;raw_ey&quot;:3.1888,&quot;cor_ex&quot;:-0.6815,&quot;cor_ey&quot;:2.4282,&quot;raw_norm&quot;:3.1918,&quot;cor_norm&quot;:2.5221,&quot;roll_fix_x&quot;:0.3288,&quot;roll_fix_y&quot;:0.8818,&quot;roll_fix_norm&quot;:0.9411},{&quot;trial&quot;:120,&quot;minute&quot;:16.0368,&quot;stim_x&quot;:-3.0,&quot;stim_y&quot;:2.0,&quot;fix_ex&quot;:0.1157,&quot;fix_ey&quot;:0.3582,&quot;raw_ex&quot;:0.2715,&quot;raw_ey&quot;:0.4153,&quot;cor_ex&quot;:0.1558,&quot;cor_ey&quot;:0.0572,&quot;raw_norm&quot;:0.4962,&quot;cor_norm&quot;:0.1659,&quot;roll_fix_x&quot;:0.2092,&quot;roll_fix_y&quot;:0.8134,&quot;roll_fix_norm&quot;:0.8399},{&quot;trial&quot;:121,&quot;minute&quot;:16.1149,&quot;stim_x&quot;:-3.0,&quot;stim_y&quot;:-1.0,&quot;fix_ex&quot;:0.1654,&quot;fix_ey&quot;:1.0319,&quot;raw_ex&quot;:-0.0303,&quot;raw_ey&quot;:0.6327,&quot;cor_ex&quot;:-0.1957,&quot;cor_ey&quot;:-0.3993,&quot;raw_norm&quot;:0.6334,&quot;cor_norm&quot;:0.4447,&quot;roll_fix_x&quot;:0.2092,&quot;roll_fix_y&quot;:0.8818,&quot;roll_fix_norm&quot;:0.9063},{&quot;trial&quot;:122,&quot;minute&quot;:16.1903,&quot;stim_x&quot;:9.0,&quot;stim_y&quot;:-4.0,&quot;fix_ex&quot;:0.5537,&quot;fix_ey&quot;:0.3867,&quot;raw_ex&quot;:-0.4395,&quot;raw_ey&quot;:1.2552,&quot;cor_ex&quot;:-0.9932,&quot;cor_ey&quot;:0.8685,&quot;raw_norm&quot;:1.3299,&quot;cor_norm&quot;:1.3194,&quot;roll_fix_x&quot;:0.3288,&quot;roll_fix_y&quot;:0.8818,&quot;roll_fix_norm&quot;:0.9411},{&quot;trial&quot;:123,&quot;minute&quot;:16.2729,&quot;stim_x&quot;:-6.0,&quot;stim_y&quot;:8.0,&quot;fix_ex&quot;:0.5792,&quot;fix_ey&quot;:0.6371,&quot;raw_ex&quot;:0.5606,&quot;raw_ey&quot;:0.4691,&quot;cor_ex&quot;:-0.0186,&quot;cor_ey&quot;:-0.168,&quot;raw_norm&quot;:0.731,&quot;cor_norm&quot;:0.169,&quot;roll_fix_x&quot;:0.3587,&quot;roll_fix_y&quot;:0.7605,&quot;roll_fix_norm&quot;:0.8409},{&quot;trial&quot;:124,&quot;minute&quot;:16.3442,&quot;stim_x&quot;:9.0,&quot;stim_y&quot;:2.0,&quot;fix_ex&quot;:0.805,&quot;fix_ey&quot;:0.518,&quot;raw_ex&quot;:0.2049,&quot;raw_ey&quot;:0.6432,&quot;cor_ex&quot;:-0.6001,&quot;cor_ey&quot;:0.1252,&quot;raw_norm&quot;:0.6751,&quot;cor_norm&quot;:0.613,&quot;roll_fix_x&quot;:0.4662,&quot;roll_fix_y&quot;:0.7605,&quot;roll_fix_norm&quot;:0.8921},{&quot;trial&quot;:129,&quot;minute&quot;:16.7408,&quot;stim_x&quot;:0.0,&quot;stim_y&quot;:-4.0,&quot;fix_ex&quot;:0.4231,&quot;fix_ey&quot;:2.358,&quot;raw_ex&quot;:-0.3209,&quot;raw_ey&quot;:2.5733,&quot;cor_ex&quot;:-0.744,&quot;cor_ey&quot;:0.2153,&quot;raw_norm&quot;:2.5932,&quot;cor_norm&quot;:0.7745,&quot;roll_fix_x&quot;:0.4662,&quot;roll_fix_y&quot;:0.9078,&quot;roll_fix_norm&quot;:1.0205},{&quot;trial&quot;:134,&quot;minute&quot;:17.1223,&quot;stim_x&quot;:0.0,&quot;stim_y&quot;:-7.0,&quot;fix_ex&quot;:0.2091,&quot;fix_ey&quot;:1.1731,&quot;raw_ex&quot;:0.5104,&quot;raw_ey&quot;:-0.3994,&quot;cor_ex&quot;:0.3013,&quot;cor_ey&quot;:-1.5724,&quot;raw_norm&quot;:0.6481,&quot;cor_norm&quot;:1.601,&quot;roll_fix_x&quot;:0.4662,&quot;roll_fix_y&quot;:1.0216,&quot;roll_fix_norm&quot;:1.1229},{&quot;trial&quot;:146,&quot;minute&quot;:21.227,&quot;stim_x&quot;:9.0,&quot;stim_y&quot;:-7.0,&quot;fix_ex&quot;:0.6822,&quot;fix_ey&quot;:1.0578,&quot;raw_ex&quot;:-0.6438,&quot;raw_ey&quot;:2.4394,&quot;cor_ex&quot;:-1.326,&quot;cor_ey&quot;:1.3816,&quot;raw_norm&quot;:2.5229,&quot;cor_norm&quot;:1.915,&quot;roll_fix_x&quot;:0.4795,&quot;roll_fix_y&quot;:1.0319,&quot;roll_fix_norm&quot;:1.1379},{&quot;trial&quot;:148,&quot;minute&quot;:21.3839,&quot;stim_x&quot;:-3.0,&quot;stim_y&quot;:5.0,&quot;fix_ex&quot;:0.8082,&quot;fix_ey&quot;:0.6095,&quot;raw_ex&quot;:0.4767,&quot;raw_ey&quot;:1.0522,&quot;cor_ex&quot;:-0.3315,&quot;cor_ey&quot;:0.4427,&quot;raw_norm&quot;:1.1552,&quot;cor_norm&quot;:0.5531,&quot;roll_fix_x&quot;:0.5433,&quot;roll_fix_y&quot;:1.0216,&quot;roll_fix_norm&quot;:1.1571},{&quot;trial&quot;:149,&quot;minute&quot;:21.4541,&quot;stim_x&quot;:0.0,&quot;stim_y&quot;:-10.0,&quot;fix_ex&quot;:0.5172,&quot;fix_ey&quot;:0.626,&quot;raw_ex&quot;:-0.6643,&quot;raw_ey&quot;:3.146,&quot;cor_ex&quot;:-1.1815,&quot;cor_ey&quot;:2.52,&quot;raw_norm&quot;:3.2153,&quot;cor_norm&quot;:2.7832,&quot;roll_fix_x&quot;:0.5172,&quot;roll_fix_y&quot;:0.9078,&quot;roll_fix_norm&quot;:1.0448},{&quot;trial&quot;:150,&quot;minute&quot;:21.5368,&quot;stim_x&quot;:-3.0,&quot;stim_y&quot;:8.0,&quot;fix_ex&quot;:1.0235,&quot;fix_ey&quot;:0.3629,&quot;raw_ex&quot;:0.6255,&quot;raw_ey&quot;:0.7528,&quot;cor_ex&quot;:-0.398,&quot;cor_ey&quot;:0.3898,&quot;raw_norm&quot;:0.9787,&quot;cor_norm&quot;:0.5571,&quot;roll_fix_x&quot;:0.5433,&quot;roll_fix_y&quot;:0.7605,&quot;roll_fix_norm&quot;:0.9347},{&quot;trial&quot;:151,&quot;minute&quot;:21.6204,&quot;stim_x&quot;:9.0,&quot;stim_y&quot;:-10.0,&quot;fix_ex&quot;:0.7197,&quot;fix_ey&quot;:0.5959,&quot;raw_ex&quot;:-0.943,&quot;raw_ey&quot;:2.2081,&quot;cor_ex&quot;:-1.6628,&quot;cor_ey&quot;:1.6121,&quot;raw_norm&quot;:2.401,&quot;cor_norm&quot;:2.316,&quot;roll_fix_x&quot;:0.5433,&quot;roll_fix_y&quot;:0.6371,&quot;roll_fix_norm&quot;:0.8373},{&quot;trial&quot;:152,&quot;minute&quot;:21.7084,&quot;stim_x&quot;:3.0,&quot;stim_y&quot;:2.0,&quot;fix_ex&quot;:0.691,&quot;fix_ey&quot;:0.4545,&quot;raw_ex&quot;:-0.0588,&quot;raw_ey&quot;:0.7477,&quot;cor_ex&quot;:-0.7498,&quot;cor_ey&quot;:0.2932,&quot;raw_norm&quot;:0.75,&quot;cor_norm&quot;:0.8051,&quot;roll_fix_x&quot;:0.5537,&quot;roll_fix_y&quot;:0.626,&quot;roll_fix_norm&quot;:0.8357},{&quot;trial&quot;:153,&quot;minute&quot;:21.785,&quot;stim_x&quot;:0.0,&quot;stim_y&quot;:-7.0,&quot;fix_ex&quot;:0.4972,&quot;fix_ey&quot;:0.6697,&quot;raw_ex&quot;:-0.0101,&quot;raw_ey&quot;:1.4143,&quot;cor_ex&quot;:-0.5074,&quot;cor_ey&quot;:0.7446,&quot;raw_norm&quot;:1.4144,&quot;cor_norm&quot;:0.901,&quot;roll_fix_x&quot;:0.5537,&quot;roll_fix_y&quot;:0.626,&quot;roll_fix_norm&quot;:0.8357},{&quot;trial&quot;:154,&quot;minute&quot;:21.8611,&quot;stim_x&quot;:6.0,&quot;stim_y&quot;:-7.0,&quot;fix_ex&quot;:0.836,&quot;fix_ey&quot;:0.3969,&quot;raw_ex&quot;:-0.4734,&quot;raw_ey&quot;:1.0974,&quot;cor_ex&quot;:-1.3093,&quot;cor_ey&quot;:0.7005,&quot;raw_norm&quot;:1.1951,&quot;cor_norm&quot;:1.485,&quot;roll_fix_x&quot;:0.5792,&quot;roll_fix_y&quot;:0.6095,&quot;roll_fix_norm&quot;:0.8408},{&quot;trial&quot;:161,&quot;minute&quot;:22.4542,&quot;stim_x&quot;:-6.0,&quot;stim_y&quot;:5.0,&quot;fix_ex&quot;:0.298,&quot;fix_ey&quot;:0.6792,&quot;raw_ex&quot;:0.9166,&quot;raw_ey&quot;:0.5759,&quot;cor_ex&quot;:0.6186,&quot;cor_ey&quot;:-0.1033,&quot;raw_norm&quot;:1.0825,&quot;cor_norm&quot;:0.6272,&quot;roll_fix_x&quot;:0.5792,&quot;roll_fix_y&quot;:0.626,&quot;roll_fix_norm&quot;:0.8528},{&quot;trial&quot;:162,&quot;minute&quot;:22.5435,&quot;stim_x&quot;:3.0,&quot;stim_y&quot;:-10.0,&quot;fix_ex&quot;:0.8294,&quot;fix_ey&quot;:0.7428,&quot;raw_ex&quot;:0.408,&quot;raw_ey&quot;:1.7061,&quot;cor_ex&quot;:-0.4214,&quot;cor_ey&quot;:0.9633,&quot;raw_norm&quot;:1.7542,&quot;cor_norm&quot;:1.0515,&quot;roll_fix_x&quot;:0.6822,&quot;roll_fix_y&quot;:0.626,&quot;roll_fix_norm&quot;:0.9259},{&quot;trial&quot;:163,&quot;minute&quot;:22.6135,&quot;stim_x&quot;:6.0,&quot;stim_y&quot;:-7.0,&quot;fix_ex&quot;:0.6876,&quot;fix_ey&quot;:0.3261,&quot;raw_ex&quot;:0.2746,&quot;raw_ey&quot;:1.0136,&quot;cor_ex&quot;:-0.4131,&quot;cor_ey&quot;:0.6876,&quot;raw_norm&quot;:1.0502,&quot;cor_norm&quot;:0.8021,&quot;roll_fix_x&quot;:0.6876,&quot;roll_fix_y&quot;:0.626,&quot;roll_fix_norm&quot;:0.9299},{&quot;trial&quot;:164,&quot;minute&quot;:22.688,&quot;stim_x&quot;:6.0,&quot;stim_y&quot;:5.0,&quot;fix_ex&quot;:0.6503,&quot;fix_ey&quot;:0.6815,&quot;raw_ex&quot;:-0.0757,&quot;raw_ey&quot;:0.6526,&quot;cor_ex&quot;:-0.726,&quot;cor_ey&quot;:-0.029,&quot;raw_norm&quot;:0.6569,&quot;cor_norm&quot;:0.7266,&quot;roll_fix_x&quot;:0.6876,&quot;roll_fix_y&quot;:0.626,&quot;roll_fix_norm&quot;:0.9299},{&quot;trial&quot;:165,&quot;minute&quot;:22.7588,&quot;stim_x&quot;:3.0,&quot;stim_y&quot;:-7.0,&quot;fix_ex&quot;:0.7914,&quot;fix_ey&quot;:0.3973,&quot;raw_ex&quot;:-0.2652,&quot;raw_ey&quot;:2.1075,&quot;cor_ex&quot;:-1.0566,&quot;cor_ey&quot;:1.7102,&quot;raw_norm&quot;:2.1241,&quot;cor_norm&quot;:2.0103,&quot;roll_fix_x&quot;:0.6876,&quot;roll_fix_y&quot;:0.626,&quot;roll_fix_norm&quot;:0.9299},{&quot;trial&quot;:174,&quot;minute&quot;:23.4638,&quot;stim_x&quot;:-6.0,&quot;stim_y&quot;:5.0,&quot;fix_ex&quot;:1.0472,&quot;fix_ey&quot;:1.2567,&quot;raw_ex&quot;:1.0417,&quot;raw_ey&quot;:1.287,&quot;cor_ex&quot;:-0.0055,&quot;cor_ey&quot;:0.0302,&quot;raw_norm&quot;:1.6557,&quot;cor_norm&quot;:0.0307,&quot;roll_fix_x&quot;:0.691,&quot;roll_fix_y&quot;:0.626,&quot;roll_fix_norm&quot;:0.9324},{&quot;trial&quot;:175,&quot;minute&quot;:23.5409,&quot;stim_x&quot;:9.0,&quot;stim_y&quot;:-7.0,&quot;fix_ex&quot;:0.5744,&quot;fix_ey&quot;:1.0794,&quot;raw_ex&quot;:-0.2056,&quot;raw_ey&quot;:1.5507,&quot;cor_ex&quot;:-0.7799,&quot;cor_ey&quot;:0.4713,&quot;raw_norm&quot;:1.5642,&quot;cor_norm&quot;:0.9113,&quot;roll_fix_x&quot;:0.691,&quot;roll_fix_y&quot;:0.626,&quot;roll_fix_norm&quot;:0.9324},{&quot;trial&quot;:177,&quot;minute&quot;:23.7022,&quot;stim_x&quot;:-6.0,&quot;stim_y&quot;:5.0,&quot;fix_ex&quot;:0.7008,&quot;fix_ey&quot;:1.3906,&quot;raw_ex&quot;:0.3226,&quot;raw_ey&quot;:1.0896,&quot;cor_ex&quot;:-0.3781,&quot;cor_ey&quot;:-0.3011,&quot;raw_norm&quot;:1.1363,&quot;cor_norm&quot;:0.4834,&quot;roll_fix_x&quot;:0.7008,&quot;roll_fix_y&quot;:0.626,&quot;roll_fix_norm&quot;:0.9396},{&quot;trial&quot;:178,&quot;minute&quot;:23.774,&quot;stim_x&quot;:3.0,&quot;stim_y&quot;:-1.0,&quot;fix_ex&quot;:0.2263,&quot;fix_ey&quot;:0.7871,&quot;raw_ex&quot;:-0.2279,&quot;raw_ey&quot;:0.4153,&quot;cor_ex&quot;:-0.4542,&quot;cor_ey&quot;:-0.3718,&quot;raw_norm&quot;:0.4737,&quot;cor_norm&quot;:0.587,&quot;roll_fix_x&quot;:0.691,&quot;roll_fix_y&quot;:0.6697,&quot;roll_fix_norm&quot;:0.9623},{&quot;trial&quot;:179,&quot;minute&quot;:23.8476,&quot;stim_x&quot;:-6.0,&quot;stim_y&quot;:2.0,&quot;fix_ex&quot;:0.5894,&quot;fix_ey&quot;:0.9752,&quot;raw_ex&quot;:0.6685,&quot;raw_ey&quot;:0.874,&quot;cor_ex&quot;:0.0791,&quot;cor_ey&quot;:-0.1012,&quot;raw_norm&quot;:1.1003,&quot;cor_norm&quot;:0.1285,&quot;roll_fix_x&quot;:0.691,&quot;roll_fix_y&quot;:0.6792,&quot;roll_fix_norm&quot;:0.9689},{&quot;trial&quot;:180,&quot;minute&quot;:23.9203,&quot;stim_x&quot;:3.0,&quot;stim_y&quot;:-1.0,&quot;fix_ex&quot;:1.385,&quot;fix_ey&quot;:0.5147,&quot;raw_ex&quot;:0.1629,&quot;raw_ey&quot;:0.8755,&quot;cor_ex&quot;:-1.2221,&quot;cor_ey&quot;:0.3608,&quot;raw_norm&quot;:0.8905,&quot;cor_norm&quot;:1.2742,&quot;roll_fix_x&quot;:0.691,&quot;roll_fix_y&quot;:0.6792,&quot;roll_fix_norm&quot;:0.9689},{&quot;trial&quot;:181,&quot;minute&quot;:23.9911,&quot;stim_x&quot;:3.0,&quot;stim_y&quot;:8.0,&quot;fix_ex&quot;:0.3894,&quot;fix_ey&quot;:0.8472,&quot;raw_ex&quot;:-0.7691,&quot;raw_ey&quot;:0.8988,&quot;cor_ex&quot;:-1.1585,&quot;cor_ey&quot;:0.0516,&quot;raw_norm&quot;:1.1829,&quot;cor_norm&quot;:1.1597,&quot;roll_fix_x&quot;:0.6876,&quot;roll_fix_y&quot;:0.6815,&quot;roll_fix_norm&quot;:0.9682},{&quot;trial&quot;:182,&quot;minute&quot;:24.0692,&quot;stim_x&quot;:0.0,&quot;stim_y&quot;:-1.0,&quot;fix_ex&quot;:1.3343,&quot;fix_ey&quot;:1.2324,&quot;raw_ex&quot;:0.1457,&quot;raw_ey&quot;:1.0437,&quot;cor_ex&quot;:-1.1885,&quot;cor_ey&quot;:-0.1887,&quot;raw_norm&quot;:1.0538,&quot;cor_norm&quot;:1.2034,&quot;roll_fix_x&quot;:0.6876,&quot;roll_fix_y&quot;:0.7428,&quot;roll_fix_norm&quot;:1.0122},{&quot;trial&quot;:183,&quot;minute&quot;:24.1421,&quot;stim_x&quot;:6.0,&quot;stim_y&quot;:2.0,&quot;fix_ex&quot;:0.2998,&quot;fix_ey&quot;:0.5929,&quot;raw_ex&quot;:-1.0263,&quot;raw_ey&quot;:1.0179,&quot;cor_ex&quot;:-1.3261,&quot;cor_ey&quot;:0.4249,&quot;raw_norm&quot;:1.4455,&quot;cor_norm&quot;:1.3926,&quot;roll_fix_x&quot;:0.6876,&quot;roll_fix_y&quot;:0.7428,&quot;roll_fix_norm&quot;:1.0122},{&quot;trial&quot;:185,&quot;minute&quot;:24.3064,&quot;stim_x&quot;:-6.0,&quot;stim_y&quot;:-10.0,&quot;fix_ex&quot;:0.4539,&quot;fix_ey&quot;:0.7125,&quot;raw_ex&quot;:1.1407,&quot;raw_ey&quot;:2.6071,&quot;cor_ex&quot;:0.6868,&quot;cor_ey&quot;:1.8946,&quot;raw_norm&quot;:2.8457,&quot;cor_norm&quot;:2.0153,&quot;roll_fix_x&quot;:0.6503,&quot;roll_fix_y&quot;:0.7428,&quot;roll_fix_norm&quot;:0.9873},{&quot;trial&quot;:186,&quot;minute&quot;:24.3944,&quot;stim_x&quot;:0.0,&quot;stim_y&quot;:2.0,&quot;fix_ex&quot;:0.7708,&quot;fix_ey&quot;:0.7014,&quot;raw_ex&quot;:0.3355,&quot;raw_ey&quot;:1.2755,&quot;cor_ex&quot;:-0.4353,&quot;cor_ey&quot;:0.5741,&quot;raw_norm&quot;:1.3189,&quot;cor_norm&quot;:0.7204,&quot;roll_fix_x&quot;:0.6876,&quot;roll_fix_y&quot;:0.7428,&quot;roll_fix_norm&quot;:1.0122},{&quot;trial&quot;:187,&quot;minute&quot;:24.4634,&quot;stim_x&quot;:9.0,&quot;stim_y&quot;:-10.0,&quot;fix_ex&quot;:0.7736,&quot;fix_ey&quot;:0.8014,&quot;raw_ex&quot;:0.0887,&quot;raw_ey&quot;:0.6754,&quot;cor_ex&quot;:-0.685,&quot;cor_ey&quot;:-0.126,&quot;raw_norm&quot;:0.6812,&quot;cor_norm&quot;:0.6964,&quot;roll_fix_x&quot;:0.6876,&quot;roll_fix_y&quot;:0.7871,&quot;roll_fix_norm&quot;:1.0452},{&quot;trial&quot;:188,&quot;minute&quot;:24.5406,&quot;stim_x&quot;:3.0,&quot;stim_y&quot;:5.0,&quot;fix_ex&quot;:0.4648,&quot;fix_ey&quot;:1.17,&quot;raw_ex&quot;:0.5882,&quot;raw_ey&quot;:1.2801,&quot;cor_ex&quot;:0.1234,&quot;cor_ey&quot;:0.1101,&quot;raw_norm&quot;:1.4088,&quot;cor_norm&quot;:0.1654,&quot;roll_fix_x&quot;:0.6503,&quot;roll_fix_y&quot;:0.8014,&quot;roll_fix_norm&quot;:1.0321},{&quot;trial&quot;:189,&quot;minute&quot;:24.6103,&quot;stim_x&quot;:0.0,&quot;stim_y&quot;:-4.0,&quot;fix_ex&quot;:0.9609,&quot;fix_ey&quot;:0.7534,&quot;raw_ex&quot;:0.3588,&quot;raw_ey&quot;:1.7611,&quot;cor_ex&quot;:-0.6021,&quot;cor_ey&quot;:1.0077,&quot;raw_norm&quot;:1.7972,&quot;cor_norm&quot;:1.1739,&quot;roll_fix_x&quot;:0.7008,&quot;roll_fix_y&quot;:0.8014,&quot;roll_fix_norm&quot;:1.0646},{&quot;trial&quot;:190,&quot;minute&quot;:24.6852,&quot;stim_x&quot;:-6.0,&quot;stim_y&quot;:-10.0,&quot;fix_ex&quot;:0.2743,&quot;fix_ey&quot;:0.9676,&quot;raw_ex&quot;:1.7579,&quot;raw_ey&quot;:2.3005,&quot;cor_ex&quot;:1.4837,&quot;cor_ey&quot;:1.3329,&quot;raw_norm&quot;:2.8953,&quot;cor_norm&quot;:1.9945,&quot;roll_fix_x&quot;:0.5894,&quot;roll_fix_y&quot;:0.8472,&quot;roll_fix_norm&quot;:1.032},{&quot;trial&quot;:191,&quot;minute&quot;:24.756,&quot;stim_x&quot;:12.0,&quot;stim_y&quot;:5.0,&quot;fix_ex&quot;:0.618,&quot;fix_ey&quot;:1.1137,&quot;raw_ex&quot;:-1.2977,&quot;raw_ey&quot;:1.0165,&quot;cor_ex&quot;:-1.9157,&quot;cor_ey&quot;:-0.0972,&quot;raw_norm&quot;:1.6484,&quot;cor_norm&quot;:1.9181,&quot;roll_fix_x&quot;:0.5894,&quot;roll_fix_y&quot;:0.8472,&quot;roll_fix_norm&quot;:1.032},{&quot;trial&quot;:194,&quot;minute&quot;:25.098,&quot;stim_x&quot;:0.0,&quot;stim_y&quot;:8.0,&quot;fix_ex&quot;:1.044,&quot;fix_ey&quot;:0.8816,&quot;raw_ex&quot;:0.8823,&quot;raw_ey&quot;:1.2676,&quot;cor_ex&quot;:-0.1617,&quot;cor_ey&quot;:0.386,&quot;raw_norm&quot;:1.5445,&quot;cor_norm&quot;:0.4185,&quot;roll_fix_x&quot;:0.618,&quot;roll_fix_y&quot;:0.8472,&quot;roll_fix_norm&quot;:1.0486},{&quot;trial&quot;:199,&quot;minute&quot;:25.5768,&quot;stim_x&quot;:0.0,&quot;stim_y&quot;:8.0,&quot;fix_ex&quot;:0.9437,&quot;fix_ey&quot;:0.9151,&quot;raw_ex&quot;:0.325,&quot;raw_ey&quot;:0.9798,&quot;cor_ex&quot;:-0.6187,&quot;cor_ey&quot;:0.0647,&quot;raw_norm&quot;:1.0323,&quot;cor_norm&quot;:0.6221,&quot;roll_fix_x&quot;:0.618,&quot;roll_fix_y&quot;:0.8472,&quot;roll_fix_norm&quot;:1.0486},{&quot;trial&quot;:202,&quot;minute&quot;:25.8714,&quot;stim_x&quot;:9.0,&quot;stim_y&quot;:2.0,&quot;fix_ex&quot;:1.2441,&quot;fix_ey&quot;:0.4602,&quot;raw_ex&quot;:-0.6264,&quot;raw_ey&quot;:1.5033,&quot;cor_ex&quot;:-1.8705,&quot;cor_ey&quot;:1.043,&quot;raw_norm&quot;:1.6285,&quot;cor_norm&quot;:2.1416,&quot;roll_fix_x&quot;:0.7708,&quot;roll_fix_y&quot;:0.8472,&quot;roll_fix_norm&quot;:1.1453},{&quot;trial&quot;:203,&quot;minute&quot;:25.9451,&quot;stim_x&quot;:3.0,&quot;stim_y&quot;:2.0,&quot;fix_ex&quot;:0.9817,&quot;fix_ey&quot;:0.8509,&quot;raw_ex&quot;:0.4714,&quot;raw_ey&quot;:0.4664,&quot;cor_ex&quot;:-0.5103,&quot;cor_ey&quot;:-0.3845,&quot;raw_norm&quot;:0.6631,&quot;cor_norm&quot;:0.639,&quot;roll_fix_x&quot;:0.7736,&quot;roll_fix_y&quot;:0.8472,&quot;roll_fix_norm&quot;:1.1473},{&quot;trial&quot;:207,&quot;minute&quot;:26.4252,&quot;stim_x&quot;:-3.0,&quot;stim_y&quot;:5.0,&quot;fix_ex&quot;:0.908,&quot;fix_ey&quot;:0.8527,&quot;raw_ex&quot;:0.8059,&quot;raw_ey&quot;:1.2488,&quot;cor_ex&quot;:-0.1021,&quot;cor_ey&quot;:0.3961,&quot;raw_norm&quot;:1.4863,&quot;cor_norm&quot;:0.409,&quot;roll_fix_x&quot;:0.7736,&quot;roll_fix_y&quot;:0.8509,&quot;roll_fix_norm&quot;:1.15},{&quot;trial&quot;:208,&quot;minute&quot;:26.5014,&quot;stim_x&quot;:12.0,&quot;stim_y&quot;:-4.0,&quot;fix_ex&quot;:0.8553,&quot;fix_ey&quot;:0.9661,&quot;raw_ex&quot;:-1.2002,&quot;raw_ey&quot;:1.3204,&quot;cor_ex&quot;:-2.0555,&quot;cor_ey&quot;:0.3543,&quot;raw_norm&quot;:1.7844,&quot;cor_norm&quot;:2.0858,&quot;roll_fix_x&quot;:0.8553,&quot;roll_fix_y&quot;:0.8527,&quot;roll_fix_norm&quot;:1.2078},{&quot;trial&quot;:209,&quot;minute&quot;:26.5962,&quot;stim_x&quot;:3.0,&quot;stim_y&quot;:-7.0,&quot;fix_ex&quot;:0.9154,&quot;fix_ey&quot;:0.8449,&quot;raw_ex&quot;:-0.4715,&quot;raw_ey&quot;:2.1501,&quot;cor_ex&quot;:-1.3868,&quot;cor_ey&quot;:1.3052,&quot;raw_norm&quot;:2.2012,&quot;cor_norm&quot;:1.9044,&quot;roll_fix_x&quot;:0.8553,&quot;roll_fix_y&quot;:0.8509,&quot;roll_fix_norm&quot;:1.2065},{&quot;trial&quot;:213,&quot;minute&quot;:26.9243,&quot;stim_x&quot;:-3.0,&quot;stim_y&quot;:2.0,&quot;fix_ex&quot;:1.0198,&quot;fix_ey&quot;:0.819,&quot;raw_ex&quot;:0.7343,&quot;raw_ey&quot;:1.1045,&quot;cor_ex&quot;:-0.2855,&quot;cor_ey&quot;:0.2856,&quot;raw_norm&quot;:1.3263,&quot;cor_norm&quot;:0.4038,&quot;roll_fix_x&quot;:0.908,&quot;roll_fix_y&quot;:0.8509,&quot;roll_fix_norm&quot;:1.2444},{&quot;trial&quot;:214,&quot;minute&quot;:26.9944,&quot;stim_x&quot;:0.0,&quot;stim_y&quot;:-10.0,&quot;fix_ex&quot;:0.5783,&quot;fix_ey&quot;:0.7147,&quot;raw_ex&quot;:-0.4368,&quot;raw_ey&quot;:3.0288,&quot;cor_ex&quot;:-1.0151,&quot;cor_ey&quot;:2.3141,&quot;raw_norm&quot;:3.0602,&quot;cor_norm&quot;:2.527,&quot;roll_fix_x&quot;:0.908,&quot;roll_fix_y&quot;:0.8509,&quot;roll_fix_norm&quot;:1.2444},{&quot;trial&quot;:215,&quot;minute&quot;:27.0846,&quot;stim_x&quot;:9.0,&quot;stim_y&quot;:-1.0,&quot;fix_ex&quot;:0.8398,&quot;fix_ey&quot;:0.6414,&quot;raw_ex&quot;:-1.022,&quot;raw_ey&quot;:0.7972,&quot;cor_ex&quot;:-1.8618,&quot;cor_ey&quot;:0.1558,&quot;raw_norm&quot;:1.2962,&quot;cor_norm&quot;:1.8684,&quot;roll_fix_x&quot;:0.908,&quot;roll_fix_y&quot;:0.8509,&quot;roll_fix_norm&quot;:1.2444},{&quot;trial&quot;:216,&quot;minute&quot;:27.1635,&quot;stim_x&quot;:-6.0,&quot;stim_y&quot;:-1.0,&quot;fix_ex&quot;:1.0751,&quot;fix_ey&quot;:0.4488,&quot;raw_ex&quot;:1.0054,&quot;raw_ey&quot;:1.1665,&quot;cor_ex&quot;:-0.0697,&quot;cor_ey&quot;:0.7177,&quot;raw_norm&quot;:1.54,&quot;cor_norm&quot;:0.7211,&quot;roll_fix_x&quot;:0.9154,&quot;roll_fix_y&quot;:0.8509,&quot;roll_fix_norm&quot;:1.2498},{&quot;trial&quot;:218,&quot;minute&quot;:27.3265,&quot;stim_x&quot;:12.0,&quot;stim_y&quot;:2.0,&quot;fix_ex&quot;:0.9794,&quot;fix_ey&quot;:0.701,&quot;raw_ex&quot;:0.3053,&quot;raw_ey&quot;:1.4227,&quot;cor_ex&quot;:-0.6741,&quot;cor_ey&quot;:0.7218,&quot;raw_norm&quot;:1.4551,&quot;cor_norm&quot;:0.9876,&quot;roll_fix_x&quot;:0.9437,&quot;roll_fix_y&quot;:0.8449,&quot;roll_fix_norm&quot;:1.2666},{&quot;trial&quot;:219,&quot;minute&quot;:27.4011,&quot;stim_x&quot;:6.0,&quot;stim_y&quot;:2.0,&quot;fix_ex&quot;:1.008,&quot;fix_ey&quot;:0.7536,&quot;raw_ex&quot;:-0.2129,&quot;raw_ey&quot;:1.1244,&quot;cor_ex&quot;:-1.221,&quot;cor_ey&quot;:0.3708,&quot;raw_norm&quot;:1.1444,&quot;cor_norm&quot;:1.276,&quot;roll_fix_x&quot;:0.9437,&quot;roll_fix_y&quot;:0.8449,&quot;roll_fix_norm&quot;:1.2666},{&quot;trial&quot;:221,&quot;minute&quot;:27.5408,&quot;stim_x&quot;:6.0,&quot;stim_y&quot;:2.0,&quot;fix_ex&quot;:1.0583,&quot;fix_ey&quot;:0.928,&quot;raw_ex&quot;:0.0033,&quot;raw_ey&quot;:0.9657,&quot;cor_ex&quot;:-1.055,&quot;cor_ey&quot;:0.0378,&quot;raw_norm&quot;:0.9657,&quot;cor_norm&quot;:1.0557,&quot;roll_fix_x&quot;:0.9794,&quot;roll_fix_y&quot;:0.8449,&quot;roll_fix_norm&quot;:1.2934},{&quot;trial&quot;:222,&quot;minute&quot;:27.6129,&quot;stim_x&quot;:3.0,&quot;stim_y&quot;:-7.0,&quot;fix_ex&quot;:1.0022,&quot;fix_ey&quot;:1.1142,&quot;raw_ex&quot;:0.7702,&quot;raw_ey&quot;:0.8496,&quot;cor_ex&quot;:-0.232,&quot;cor_ey&quot;:-0.2646,&quot;raw_norm&quot;:1.1467,&quot;cor_norm&quot;:0.3519,&quot;roll_fix_x&quot;:0.9817,&quot;roll_fix_y&quot;:0.8449,&quot;roll_fix_norm&quot;:1.2952},{&quot;trial&quot;:224,&quot;minute&quot;:27.8036,&quot;stim_x&quot;:0.0,&quot;stim_y&quot;:-4.0,&quot;fix_ex&quot;:1.1202,&quot;fix_ey&quot;:0.8045,&quot;raw_ex&quot;:0.9693,&quot;raw_ey&quot;:1.3693,&quot;cor_ex&quot;:-0.1509,&quot;cor_ey&quot;:0.5648,&quot;raw_norm&quot;:1.6776,&quot;cor_norm&quot;:0.5846,&quot;roll_fix_x&quot;:0.9817,&quot;roll_fix_y&quot;:0.819,&quot;roll_fix_norm&quot;:1.2784},{&quot;trial&quot;:225,&quot;minute&quot;:27.8873,&quot;stim_x&quot;:12.0,&quot;stim_y&quot;:-1.0,&quot;fix_ex&quot;:0.6001,&quot;fix_ey&quot;:0.5756,&quot;raw_ex&quot;:-0.6915,&quot;raw_ey&quot;:0.6504,&quot;cor_ex&quot;:-1.2916,&quot;cor_ey&quot;:0.0748,&quot;raw_norm&quot;:0.9493,&quot;cor_norm&quot;:1.2938,&quot;roll_fix_x&quot;:0.9817,&quot;roll_fix_y&quot;:0.8045,&quot;roll_fix_norm&quot;:1.2692},{&quot;trial&quot;:226,&quot;minute&quot;:27.9652,&quot;stim_x&quot;:9.0,&quot;stim_y&quot;:8.0,&quot;fix_ex&quot;:0.838,&quot;fix_ey&quot;:0.6972,&quot;raw_ex&quot;:-1.906,&quot;raw_ey&quot;:0.0055,&quot;cor_ex&quot;:-2.7439,&quot;cor_ey&quot;:-0.6917,&quot;raw_norm&quot;:1.906,&quot;cor_norm&quot;:2.8298,&quot;roll_fix_x&quot;:0.9794,&quot;roll_fix_y&quot;:0.8045,&quot;roll_fix_norm&quot;:1.2675},{&quot;trial&quot;:227,&quot;minute&quot;:28.0411,&quot;stim_x&quot;:0.0,&quot;stim_y&quot;:2.0,&quot;fix_ex&quot;:0.9778,&quot;fix_ey&quot;:0.9115,&quot;raw_ex&quot;:0.0651,&quot;raw_ey&quot;:0.9827,&quot;cor_ex&quot;:-0.9127,&quot;cor_ey&quot;:0.0712,&quot;raw_norm&quot;:0.9849,&quot;cor_norm&quot;:0.9155,&quot;roll_fix_x&quot;:0.9778,&quot;roll_fix_y&quot;:0.8045,&quot;roll_fix_norm&quot;:1.2663},{&quot;trial&quot;:228,&quot;minute&quot;:28.1204,&quot;stim_x&quot;:0.0,&quot;stim_y&quot;:-1.0,&quot;fix_ex&quot;:0.6067,&quot;fix_ey&quot;:0.6629,&quot;raw_ex&quot;:0.8499,&quot;raw_ey&quot;:1.5776,&quot;cor_ex&quot;:0.2432,&quot;cor_ey&quot;:0.9147,&quot;raw_norm&quot;:1.792,&quot;cor_norm&quot;:0.9465,&quot;roll_fix_x&quot;:0.9778,&quot;roll_fix_y&quot;:0.7536,&quot;roll_fix_norm&quot;:1.2345},{&quot;trial&quot;:229,&quot;minute&quot;:28.1989,&quot;stim_x&quot;:9.0,&quot;stim_y&quot;:5.0,&quot;fix_ex&quot;:0.5599,&quot;fix_ey&quot;:0.6799,&quot;raw_ex&quot;:-0.2455,&quot;raw_ey&quot;:0.9958,&quot;cor_ex&quot;:-0.8054,&quot;cor_ey&quot;:0.3159,&quot;raw_norm&quot;:1.0256,&quot;cor_norm&quot;:0.8652,&quot;roll_fix_x&quot;:0.9778,&quot;roll_fix_y&quot;:0.7147,&quot;roll_fix_norm&quot;:1.2112},{&quot;trial&quot;:230,&quot;minute&quot;:28.2742,&quot;stim_x&quot;:0.0,&quot;stim_y&quot;:-7.0,&quot;fix_ex&quot;:0.541,&quot;fix_ey&quot;:0.7668,&quot;raw_ex&quot;:-0.3443,&quot;raw_ey&quot;:1.4473,&quot;cor_ex&quot;:-0.8853,&quot;cor_ey&quot;:0.6806,&quot;raw_norm&quot;:1.4877,&quot;cor_norm&quot;:1.1167,&quot;roll_fix_x&quot;:0.9778,&quot;roll_fix_y&quot;:0.7147,&quot;roll_fix_norm&quot;:1.2112},{&quot;trial&quot;:231,&quot;minute&quot;:28.3555,&quot;stim_x&quot;:-3.0,&quot;stim_y&quot;:8.0,&quot;fix_ex&quot;:1.01,&quot;fix_ey&quot;:0.4159,&quot;raw_ex&quot;:-0.3683,&quot;raw_ey&quot;:0.6027,&quot;cor_ex&quot;:-1.3783,&quot;cor_ey&quot;:0.1868,&quot;raw_norm&quot;:0.7063,&quot;cor_norm&quot;:1.3909,&quot;roll_fix_x&quot;:0.9778,&quot;roll_fix_y&quot;:0.701,&quot;roll_fix_norm&quot;:1.2031},{&quot;trial&quot;:235,&quot;minute&quot;:28.8362,&quot;stim_x&quot;:12.0,&quot;stim_y&quot;:-4.0,&quot;fix_ex&quot;:1.2281,&quot;fix_ey&quot;:0.3645,&quot;raw_ex&quot;:-0.8692,&quot;raw_ey&quot;:2.8321,&quot;cor_ex&quot;:-2.0973,&quot;cor_ey&quot;:2.4675,&quot;raw_norm&quot;:2.9624,&quot;cor_norm&quot;:3.2384,&quot;roll_fix_x&quot;:0.9794,&quot;roll_fix_y&quot;:0.6972,&quot;roll_fix_norm&quot;:1.2022},{&quot;trial&quot;:236,&quot;minute&quot;:28.9726,&quot;stim_x&quot;:0.0,&quot;stim_y&quot;:-4.0,&quot;fix_ex&quot;:0.9937,&quot;fix_ey&quot;:0.7122,&quot;raw_ex&quot;:0.5691,&quot;raw_ey&quot;:1.6059,&quot;cor_ex&quot;:-0.4246,&quot;cor_ey&quot;:0.8937,&quot;raw_norm&quot;:1.7037,&quot;cor_norm&quot;:0.9895,&quot;roll_fix_x&quot;:0.9937,&quot;roll_fix_y&quot;:0.701,&quot;roll_fix_norm&quot;:1.2161},{&quot;trial&quot;:237,&quot;minute&quot;:29.0466,&quot;stim_x&quot;:-3.0,&quot;stim_y&quot;:5.0,&quot;fix_ex&quot;:1.004,&quot;fix_ey&quot;:0.611,&quot;raw_ex&quot;:0.6116,&quot;raw_ey&quot;:1.3894,&quot;cor_ex&quot;:-0.3924,&quot;cor_ey&quot;:0.7785,&quot;raw_norm&quot;:1.5181,&quot;cor_norm&quot;:0.8718,&quot;roll_fix_x&quot;:0.9937,&quot;roll_fix_y&quot;:0.701,&quot;roll_fix_norm&quot;:1.2161},{&quot;trial&quot;:239,&quot;minute&quot;:29.1954,&quot;stim_x&quot;:-6.0,&quot;stim_y&quot;:-4.0,&quot;fix_ex&quot;:1.0284,&quot;fix_ey&quot;:1.2503,&quot;raw_ex&quot;:1.6959,&quot;raw_ey&quot;:2.5422,&quot;cor_ex&quot;:0.6675,&quot;cor_ey&quot;:1.2919,&quot;raw_norm&quot;:3.056,&quot;cor_norm&quot;:1.4542,&quot;roll_fix_x&quot;:1.0022,&quot;roll_fix_y&quot;:0.7122,&quot;roll_fix_norm&quot;:1.2295},{&quot;trial&quot;:240,&quot;minute&quot;:29.2716,&quot;stim_x&quot;:9.0,&quot;stim_y&quot;:-1.0,&quot;fix_ex&quot;:1.0571,&quot;fix_ey&quot;:1.1566,&quot;raw_ex&quot;:-0.3735,&quot;raw_ey&quot;:1.9303,&quot;cor_ex&quot;:-1.4306,&quot;cor_ey&quot;:0.7738,&quot;raw_norm&quot;:1.9662,&quot;cor_norm&quot;:1.6265,&quot;roll_fix_x&quot;:1.0022,&quot;roll_fix_y&quot;:0.7122,&quot;roll_fix_norm&quot;:1.2295},{&quot;trial&quot;:241,&quot;minute&quot;:29.3597,&quot;stim_x&quot;:-6.0,&quot;stim_y&quot;:-10.0,&quot;fix_ex&quot;:0.8744,&quot;fix_ey&quot;:0.8975,&quot;raw_ex&quot;:1.577,&quot;raw_ey&quot;:1.8021,&quot;cor_ex&quot;:0.7026,&quot;cor_ey&quot;:0.9046,&quot;raw_norm&quot;:2.3947,&quot;cor_norm&quot;:1.1454,&quot;roll_fix_x&quot;:0.9937,&quot;roll_fix_y&quot;:0.7122,&quot;roll_fix_norm&quot;:1.2226},{&quot;trial&quot;:242,&quot;minute&quot;:29.4628,&quot;stim_x&quot;:3.0,&quot;stim_y&quot;:-4.0,&quot;fix_ex&quot;:1.1725,&quot;fix_ey&quot;:1.1491,&quot;raw_ex&quot;:0.5947,&quot;raw_ey&quot;:1.6686,&quot;cor_ex&quot;:-0.5778,&quot;cor_ey&quot;:0.5195,&quot;raw_norm&quot;:1.7714,&quot;cor_norm&quot;:0.777,&quot;roll_fix_x&quot;:0.9937,&quot;roll_fix_y&quot;:0.7122,&quot;roll_fix_norm&quot;:1.2226},{&quot;trial&quot;:243,&quot;minute&quot;:29.5583,&quot;stim_x&quot;:-3.0,&quot;stim_y&quot;:-1.0,&quot;fix_ex&quot;:0.9387,&quot;fix_ey&quot;:0.9953,&quot;raw_ex&quot;:0.6773,&quot;raw_ey&quot;:2.0922,&quot;cor_ex&quot;:-0.2614,&quot;cor_ey&quot;:1.0969,&quot;raw_norm&quot;:2.1991,&quot;cor_norm&quot;:1.1276,&quot;roll_fix_x&quot;:0.9778,&quot;roll_fix_y&quot;:0.7122,&quot;roll_fix_norm&quot;:1.2097},{&quot;trial&quot;:250,&quot;minute&quot;:31.3478,&quot;stim_x&quot;:3.0,&quot;stim_y&quot;:-4.0,&quot;fix_ex&quot;:0.6182,&quot;fix_ey&quot;:1.0401,&quot;raw_ex&quot;:0.3889,&quot;raw_ey&quot;:1.742,&quot;cor_ex&quot;:-0.2292,&quot;cor_ey&quot;:0.7019,&quot;raw_norm&quot;:1.7849,&quot;cor_norm&quot;:0.7384,&quot;roll_fix_x&quot;:0.9778,&quot;roll_fix_y&quot;:0.7668,&quot;roll_fix_norm&quot;:1.2426},{&quot;trial&quot;:251,&quot;minute&quot;:31.4264,&quot;stim_x&quot;:0.0,&quot;stim_y&quot;:-4.0,&quot;fix_ex&quot;:0.9612,&quot;fix_ey&quot;:0.8384,&quot;raw_ex&quot;:0.7958,&quot;raw_ey&quot;:2.4166,&quot;cor_ex&quot;:-0.1654,&quot;cor_ey&quot;:1.5782,&quot;raw_norm&quot;:2.5443,&quot;cor_norm&quot;:1.5869,&quot;roll_fix_x&quot;:0.9778,&quot;roll_fix_y&quot;:0.8384,&quot;roll_fix_norm&quot;:1.2881},{&quot;trial&quot;:252,&quot;minute&quot;:31.4957,&quot;stim_x&quot;:6.0,&quot;stim_y&quot;:5.0,&quot;fix_ex&quot;:1.0858,&quot;fix_ey&quot;:1.2312,&quot;raw_ex&quot;:-0.1875,&quot;raw_ey&quot;:1.1691,&quot;cor_ex&quot;:-1.2733,&quot;cor_ey&quot;:-0.0621,&quot;raw_norm&quot;:1.1841,&quot;cor_norm&quot;:1.2748,&quot;roll_fix_x&quot;:0.9937,&quot;roll_fix_y&quot;:0.8384,&quot;roll_fix_norm&quot;:1.3002},{&quot;trial&quot;:253,&quot;minute&quot;:31.5717,&quot;stim_x&quot;:9.0,&quot;stim_y&quot;:2.0,&quot;fix_ex&quot;:0.8252,&quot;fix_ey&quot;:0.8119,&quot;raw_ex&quot;:-0.4213,&quot;raw_ey&quot;:1.4215,&quot;cor_ex&quot;:-1.2465,&quot;cor_ey&quot;:0.6096,&quot;raw_norm&quot;:1.4826,&quot;cor_norm&quot;:1.3876,&quot;roll_fix_x&quot;:0.9937,&quot;roll_fix_y&quot;:0.8384,&quot;roll_fix_norm&quot;:1.3002},{&quot;trial&quot;:254,&quot;minute&quot;:31.6501,&quot;stim_x&quot;:6.0,&quot;stim_y&quot;:8.0,&quot;fix_ex&quot;:0.8614,&quot;fix_ey&quot;:1.2554,&quot;raw_ex&quot;:0.5549,&quot;raw_ey&quot;:1.3003,&quot;cor_ex&quot;:-0.3065,&quot;cor_ey&quot;:0.045,&quot;raw_norm&quot;:1.4138,&quot;cor_norm&quot;:0.3097,&quot;roll_fix_x&quot;:0.9937,&quot;roll_fix_y&quot;:0.8975,&quot;roll_fix_norm&quot;:1.3391},{&quot;trial&quot;:255,&quot;minute&quot;:31.7561,&quot;stim_x&quot;:0.0,&quot;stim_y&quot;:2.0,&quot;fix_ex&quot;:1.1586,&quot;fix_ey&quot;:1.1013,&quot;raw_ex&quot;:0.6726,&quot;raw_ey&quot;:1.1258,&quot;cor_ex&quot;:-0.486,&quot;cor_ey&quot;:0.0245,&quot;raw_norm&quot;:1.3114,&quot;cor_norm&quot;:0.4866,&quot;roll_fix_x&quot;:1.004,&quot;roll_fix_y&quot;:0.9953,&quot;roll_fix_norm&quot;:1.4137},{&quot;trial&quot;:256,&quot;minute&quot;:31.8322,&quot;stim_x&quot;:-6.0,&quot;stim_y&quot;:8.0,&quot;fix_ex&quot;:1.0602,&quot;fix_ey&quot;:0.9452,&quot;raw_ex&quot;:0.9492,&quot;raw_ey&quot;:0.8271,&quot;cor_ex&quot;:-0.111,&quot;cor_ey&quot;:-0.1182,&quot;raw_norm&quot;:1.259,&quot;cor_norm&quot;:0.1621,&quot;roll_fix_x&quot;:1.004,&quot;roll_fix_y&quot;:0.9953,&quot;roll_fix_norm&quot;:1.4137},{&quot;trial&quot;:257,&quot;minute&quot;:31.9145,&quot;stim_x&quot;:3.0,&quot;stim_y&quot;:-10.0,&quot;fix_ex&quot;:1.3165,&quot;fix_ey&quot;:0.8694,&quot;raw_ex&quot;:-0.1768,&quot;raw_ey&quot;:1.7799,&quot;cor_ex&quot;:-1.4933,&quot;cor_ey&quot;:0.9105,&quot;raw_norm&quot;:1.7886,&quot;cor_norm&quot;:1.749,&quot;roll_fix_x&quot;:1.004,&quot;roll_fix_y&quot;:0.9953,&quot;roll_fix_norm&quot;:1.4137},{&quot;trial&quot;:260,&quot;minute&quot;:32.2563,&quot;stim_x&quot;:9.0,&quot;stim_y&quot;:8.0,&quot;fix_ex&quot;:1.402,&quot;fix_ey&quot;:1.0498,&quot;raw_ex&quot;:-0.2138,&quot;raw_ey&quot;:1.7074,&quot;cor_ex&quot;:-1.6158,&quot;cor_ey&quot;:0.6576,&quot;raw_norm&quot;:1.7208,&quot;cor_norm&quot;:1.7445,&quot;roll_fix_x&quot;:1.0284,&quot;roll_fix_y&quot;:1.0401,&quot;roll_fix_norm&quot;:1.4626},{&quot;trial&quot;:264,&quot;minute&quot;:32.7566,&quot;stim_x&quot;:6.0,&quot;stim_y&quot;:8.0,&quot;fix_ex&quot;:1.1534,&quot;fix_ey&quot;:1.7881,&quot;raw_ex&quot;:0.288,&quot;raw_ey&quot;:1.8652,&quot;cor_ex&quot;:-0.8654,&quot;cor_ey&quot;:0.0771,&quot;raw_norm&quot;:1.8873,&quot;cor_norm&quot;:0.8688,&quot;roll_fix_x&quot;:1.0571,&quot;roll_fix_y&quot;:1.0498,&quot;roll_fix_norm&quot;:1.4898}];
+  const state = { epoch: &quot;all&quot;, raw: true, corrected: true };
+  const tooltip = root.querySelector(&quot;.tooltip&quot;);
+  const pairHost = root.querySelector(&quot;#eyelink-pair-plot&quot;);
+  const timeHost = root.querySelector(&quot;#eyelink-time-plot&quot;);
+  const svgNamespace = &quot;http://www.w3.org/2000/svg&quot;;
+  timeHost.classList.add(&quot;timeline&quot;);
+
+  function svgElement(tag, attributes = {}, text = null) {
+    const element = document.createElementNS(svgNamespace, tag);
+    Object.entries(attributes).forEach(([name, value]) =&gt; {
+      if (value !== null &amp;&amp; value !== undefined) {
+        element.setAttribute(name, String(value));
+      }
+    });
+    if (text !== null) element.textContent = text;
+    return element;
+  }
+
+  function appendSvg(parent, tag, attributes = {}, text = null) {
+    const element = svgElement(tag, attributes, text);
+    parent.appendChild(element);
+    return element;
+  }
+
+  function scaleLinear(domainStart, domainEnd, rangeStart, rangeEnd) {
+    const domainSpan = domainEnd - domainStart || 1;
+    const rangeSpan = rangeEnd - rangeStart;
+    const scale = value =&gt; rangeStart + (value - domainStart) * rangeSpan / domainSpan;
+    scale.invert = value =&gt; domainStart + (value - rangeStart) * domainSpan / rangeSpan;
+    return scale;
+  }
+
+  function median(values) {
+    const sorted = [...values].sort((a, b) =&gt; a - b);
+    const middle = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+  }
+
+  function mean(values) {
+    return values.reduce((sum, value) =&gt; sum + value, 0) / values.length;
+  }
+
+  function selectedData() {
+    if (state.epoch === &quot;early&quot;) return data.filter(d =&gt; d.trial &lt; 41);
+    if (state.epoch === &quot;transition&quot;) return data.filter(d =&gt; d.trial &gt;= 41 &amp;&amp; d.trial &lt; 69);
+    if (state.epoch === &quot;drift&quot;) return data.filter(d =&gt; d.trial &gt;= 69);
+    return data;
+  }
+
+  function showTooltip(event, d) {
+    const lines = [
+      `&lt;strong&gt;Trial ${d.trial}&lt;/strong&gt; · ${d.minute.toFixed(2)} min`,
+      `实际刺激：(${d.stim_x.toFixed(0)}°, ${d.stim_y.toFixed(0)}°)`,
+      `原始误差：(${d.raw_ex.toFixed(2)}°, ${d.raw_ey.toFixed(2)}°)，${d.raw_norm.toFixed(2)}°`,
+      `修正误差：(${d.cor_ex.toFixed(2)}°, ${d.cor_ey.toFixed(2)}°)，${d.cor_norm.toFixed(2)}°`,
+      `Fixation 偏差：(${d.fix_ex.toFixed(2)}°, ${d.fix_ey.toFixed(2)}°)`
+    ];
+    tooltip.innerHTML = lines.join(&quot;&lt;br&gt;&quot;);
+    tooltip.style.display = &quot;block&quot;;
+    tooltip.setAttribute(&quot;aria-hidden&quot;, &quot;false&quot;);
+    const rootRect = root.getBoundingClientRect();
+    const maxLeft = Math.max(4, rootRect.width - 292);
+    tooltip.style.left = `${Math.max(4, Math.min(event.clientX - rootRect.left + 12, maxLeft))}px`;
+    tooltip.style.top = `${event.clientY - rootRect.top + 12}px`;
+  }
+
+  function hideTooltip() {
+    tooltip.style.display = &quot;none&quot;;
+    tooltip.setAttribute(&quot;aria-hidden&quot;, &quot;true&quot;);
+  }
+
+  function createChart(host, width, height, label, title, description) {
+    host.replaceChildren();
+    const svg = svgElement(&quot;svg&quot;, {
+      class: &quot;chart-svg&quot;,
+      viewBox: `0 0 ${width} ${height}`,
+      role: &quot;img&quot;,
+      &quot;aria-label&quot;: label
+    });
+    appendSvg(svg, &quot;title&quot;, {}, title);
+    appendSvg(svg, &quot;desc&quot;, {}, description);
+    host.appendChild(svg);
+    return svg;
+  }
+
+  function addCartesianAxes(plot, xScale, yScale, xTicks, yTicks, innerWidth, innerHeight, xFormat, yFormat) {
+    const grid = appendSvg(plot, &quot;g&quot;, { class: &quot;grid&quot; });
+    xTicks.forEach(value =&gt; {
+      appendSvg(grid, &quot;line&quot;, {
+        x1: xScale(value), x2: xScale(value), y1: 0, y2: innerHeight
+      });
+    });
+    yTicks.forEach(value =&gt; {
+      appendSvg(grid, &quot;line&quot;, {
+        x1: 0, x2: innerWidth, y1: yScale(value), y2: yScale(value)
+      });
+    });
+    appendSvg(plot, &quot;rect&quot;, {
+      class: &quot;chart-frame&quot;,
+      &quot;data-chart-frame&quot;: &quot;&quot;,
+      width: innerWidth,
+      height: innerHeight
+    });
+
+    const xAxis = appendSvg(plot, &quot;g&quot;, { class: &quot;axis&quot; });
+    xTicks.forEach(value =&gt; {
+      const position = xScale(value);
+      appendSvg(xAxis, &quot;line&quot;, {
+        x1: position, x2: position, y1: innerHeight, y2: innerHeight + 5
+      });
+      appendSvg(xAxis, &quot;text&quot;, {
+        x: position, y: innerHeight + 20, &quot;text-anchor&quot;: &quot;middle&quot;
+      }, xFormat(value));
+    });
+
+    const yAxis = appendSvg(plot, &quot;g&quot;, { class: &quot;axis&quot; });
+    yTicks.forEach(value =&gt; {
+      const position = yScale(value);
+      appendSvg(yAxis, &quot;line&quot;, { x1: -5, x2: 0, y1: position, y2: position });
+      appendSvg(yAxis, &quot;text&quot;, {
+        x: -9, y: position + 4, &quot;text-anchor&quot;: &quot;end&quot;
+      }, yFormat(value));
+    });
+  }
+
+  function nicePairDomain(maxAbs) {
+    const padded = Math.max(1, maxAbs * 1.14);
+    const rawStep = padded / 3;
+    const power = 10 ** Math.floor(Math.log10(rawStep));
+    const normalized = rawStep / power;
+    const factor = [1, 2, 2.5, 5, 10].find(value =&gt; value &gt;= normalized) || 10;
+    const step = factor * power;
+    return { bound: Math.ceil(padded / step) * step, step };
+  }
+
+  function drawPairPlot() {
+    const shown = selectedData();
+    const width = Math.max(320, pairHost.getBoundingClientRect().width);
+    const height = width &lt; 520 ? 300 : 390;
+    const margin = { top: 18, right: 22, bottom: 54, left: 68 };
+    const innerWidth = width - margin.left - margin.right;
+    const innerHeight = height - margin.top - margin.bottom;
+    const allValues = shown.flatMap(d =&gt; [d.raw_ex, d.raw_ey, d.cor_ex, d.cor_ey]);
+    const maxAbs = Math.max(...allValues.map(value =&gt; Math.abs(value)));
+    const domain = nicePairDomain(maxAbs);
+    const x = scaleLinear(-domain.bound, domain.bound, 0, innerWidth);
+    const y = scaleLinear(-domain.bound, domain.bound, innerHeight, 0);
+    const ticks = width &lt; 520
+      ? [-domain.bound, 0, domain.bound]
+      : Array.from(
+          { length: Math.round((2 * domain.bound) / domain.step) + 1 },
+          (_, index) =&gt; -domain.bound + index * domain.step
+        );
+
+    const svg = createChart(
+      pairHost,
+      width,
+      height,
+      &quot;成功 trial 的原始 gaze 和 fixation 偏差修正后 gaze，相对于各自刺激中心的配对散点图&quot;,
+      &quot;刺激中心对齐后的配对 gaze 误差&quot;,
+      &quot;所有刺激位置被平移到坐标原点。每条细线连接同一个成功 trial 修正前后的 gaze 位置。&quot;
+    );
+    const plot = appendSvg(svg, &quot;g&quot;, { transform: `translate(${margin.left},${margin.top})` });
+    addCartesianAxes(
+      plot, x, y, ticks, ticks, innerWidth, innerHeight,
+      value =&gt; `${Number(value.toFixed(2))}°`,
+      value =&gt; `${Number(value.toFixed(2))}°`
+    );
+
+    if (state.raw &amp;&amp; state.corrected) {
+      const lines = appendSvg(plot, &quot;g&quot;);
+      shown.forEach(d =&gt; appendSvg(lines, &quot;line&quot;, {
+        class: &quot;pair-line&quot;,
+        x1: x(d.raw_ex), y1: y(d.raw_ey),
+        x2: x(d.cor_ex), y2: y(d.cor_ey)
+      }));
+    }
+    if (state.raw) {
+      const points = appendSvg(plot, &quot;g&quot;);
+      shown.forEach(d =&gt; appendSvg(points, &quot;circle&quot;, {
+        class: &quot;raw-point&quot;, r: 3.2, cx: x(d.raw_ex), cy: y(d.raw_ey)
+      }));
+    }
+    if (state.corrected) {
+      const points = appendSvg(plot, &quot;g&quot;);
+      shown.forEach(d =&gt; appendSvg(points, &quot;path&quot;, {
+        class: &quot;corrected-point&quot;,
+        d: &quot;M 0 -4.5 L 4 0 L 0 4.5 L -4 0 Z&quot;,
+        transform: `translate(${x(d.cor_ex)},${y(d.cor_ey)})`
+      }));
+    }
+    appendSvg(plot, &quot;circle&quot;, {
+      class: &quot;target-mark&quot;, cx: x(0), cy: y(0), r: 5.2
+    });
+    appendSvg(plot, &quot;text&quot;, {
+      class: &quot;target-label&quot;, x: x(0) + 8, y: y(0) - 8
+    }, &quot;Stim 中心&quot;);
+    appendSvg(svg, &quot;text&quot;, {
+      class: &quot;axis-title&quot;, &quot;data-axis&quot;: &quot;x&quot;,
+      x: margin.left + innerWidth / 2, y: height - 8, &quot;text-anchor&quot;: &quot;middle&quot;
+    }, &quot;相对 Stim 中心的水平误差 (°)&quot;);
+    appendSvg(svg, &quot;text&quot;, {
+      class: &quot;axis-title&quot;, &quot;data-axis&quot;: &quot;y&quot;,
+      transform: `translate(17,${margin.top + innerHeight / 2}) rotate(-90)`,
+      &quot;text-anchor&quot;: &quot;middle&quot;
+    }, &quot;相对 Stim 中心的垂直误差 (°)&quot;);
+
+    const overlay = appendSvg(plot, &quot;rect&quot;, {
+      class: &quot;hit-overlay&quot;,
+      &quot;data-chart-hit&quot;: &quot;&quot;,
+      &quot;data-chart-hover-overlay&quot;: &quot;cross-series&quot;,
+      width: innerWidth,
+      height: innerHeight
+    });
+    overlay.addEventListener(&quot;mousemove&quot;, event =&gt; {
+      const rectangle = overlay.getBoundingClientRect();
+      const mx = (event.clientX - rectangle.left) * innerWidth / rectangle.width;
+      const my = (event.clientY - rectangle.top) * innerHeight / rectangle.height;
+      let nearest = null;
+      let nearestDistance = Infinity;
+      shown.forEach(d =&gt; {
+        const candidates = [];
+        if (state.raw) candidates.push([x(d.raw_ex), y(d.raw_ey)]);
+        if (state.corrected) candidates.push([x(d.cor_ex), y(d.cor_ey)]);
+        candidates.forEach(([px, py]) =&gt; {
+          const distance = Math.hypot(px - mx, py - my);
+          if (distance &lt; nearestDistance) {
+            nearestDistance = distance;
+            nearest = d;
+          }
+        });
+      });
+      if (nearest &amp;&amp; nearestDistance &lt; 28) showTooltip(event, nearest);
+      else hideTooltip();
+    });
+    overlay.addEventListener(&quot;mouseleave&quot;, hideTooltip);
+
+    const rawMedian = median(shown.map(d =&gt; d.raw_norm));
+    const correctedMedian = median(shown.map(d =&gt; d.cor_norm));
+    const improved = mean(shown.map(d =&gt; d.cor_norm &lt; d.raw_norm ? 1 : 0));
+    root.querySelector(&quot;#eyelink-pair-summary&quot;).textContent =
+      `${shown.length} 个 trial；误差中位数 ${rawMedian.toFixed(2)}° → ${correctedMedian.toFixed(2)}°；${Math.round(improved * 100)}% 的 trial 改善。`;
+  }
+
+  function drawTimePlot() {
+    const width = Math.max(320, timeHost.getBoundingClientRect().width);
+    const height = width &lt; 520 ? 260 : 300;
+    const margin = { top: 24, right: 22, bottom: 52, left: 68 };
+    const innerWidth = width - margin.left - margin.right;
+    const innerHeight = height - margin.top - margin.bottom;
+    const maxMinute = Math.max(...data.map(d =&gt; d.minute));
+    const maxError = Math.max(...data.map(d =&gt; Math.max(Math.hypot(d.fix_ex, d.fix_ey), d.roll_fix_norm || 0)));
+    const xMax = Math.ceil(maxMinute / 5) * 5;
+    const yMax = Math.ceil(maxError * 1.12 * 2) / 2;
+    const x = scaleLinear(0, xMax, 0, innerWidth);
+    const y = scaleLinear(0, yMax, innerHeight, 0);
+    const xTicks = width &lt; 520
+      ? [0, 10, 20, 30].filter(value =&gt; value &lt;= xMax)
+      : Array.from({ length: Math.floor(xMax / 5) + 1 }, (_, index) =&gt; index * 5);
+    const yTicks = Array.from({ length: Math.floor(yMax / 0.5) + 1 }, (_, index) =&gt; index * 0.5);
+
+    const svg = createChart(
+      timeHost,
+      width,
+      height,
+      &quot;Fixation gaze 偏差随任务分钟数变化的时间图&quot;,
+      &quot;Fixation 偏差时间变化&quot;,
+      &quot;约第 3.77 分钟出现主要均值变化，第 6.50 分钟起最近十五个成功 trial 的偏差持续超过一度。&quot;
+    );
+    const plot = appendSvg(svg, &quot;g&quot;, { transform: `translate(${margin.left},${margin.top})` });
+    addCartesianAxes(
+      plot, x, y, xTicks, yTicks, innerWidth, innerHeight,
+      value =&gt; `${value} min`, value =&gt; `${Number(value.toFixed(1))}°`
+    );
+    appendSvg(plot, &quot;line&quot;, {
+      class: &quot;threshold-line&quot;, x1: 0, x2: innerWidth, y1: y(1), y2: y(1)
+    });
+    appendSvg(plot, &quot;text&quot;, {
+      class: &quot;annotation&quot;, x: innerWidth - 3, y: y(1) - 5, &quot;text-anchor&quot;: &quot;end&quot;
+    }, &quot;1°&quot;);
+
+    const validRolling = data.filter(d =&gt; d.roll_fix_norm !== null);
+    const pathData = validRolling.map((d, index) =&gt; {
+      const command = index === 0 ? &quot;M&quot; : &quot;L&quot;;
+      return `${command} ${x(d.minute).toFixed(2)} ${y(d.roll_fix_norm).toFixed(2)}`;
+    }).join(&quot; &quot;);
+    appendSvg(plot, &quot;path&quot;, { class: &quot;rolling-line&quot;, d: pathData });
+    const points = appendSvg(plot, &quot;g&quot;);
+    data.forEach(d =&gt; appendSvg(points, &quot;circle&quot;, {
+      class: &quot;fix-point&quot;, r: 2.5,
+      cx: x(d.minute), cy: y(Math.hypot(d.fix_ex, d.fix_ey))
+    }));
+
+    const markers = [
+      { minute: 3.773, label: &quot;均值变化 3.77 min&quot;, className: &quot;change-line&quot; },
+      { minute: 6.504, label: &quot;持续 &gt;1° 6.50 min&quot;, className: &quot;sustained-line&quot; }
+    ];
+    markers.forEach((marker, index) =&gt; {
+      appendSvg(plot, &quot;line&quot;, {
+        class: marker.className,
+        x1: x(marker.minute), x2: x(marker.minute), y1: 0, y2: innerHeight
+      });
+      appendSvg(plot, &quot;text&quot;, {
+        class: &quot;annotation&quot;, x: x(marker.minute) + 5, y: 13 + index * 16,
+        &quot;text-anchor&quot;: &quot;start&quot;
+      }, marker.label);
+    });
+
+    appendSvg(svg, &quot;text&quot;, {
+      class: &quot;axis-title&quot;, &quot;data-axis&quot;: &quot;x&quot;,
+      x: margin.left + innerWidth / 2, y: height - 7, &quot;text-anchor&quot;: &quot;middle&quot;
+    }, &quot;任务开始后的时间 (min)&quot;);
+    appendSvg(svg, &quot;text&quot;, {
+      class: &quot;axis-title&quot;, &quot;data-axis&quot;: &quot;y&quot;,
+      transform: `translate(17,${margin.top + innerHeight / 2}) rotate(-90)`,
+      &quot;text-anchor&quot;: &quot;middle&quot;
+    }, &quot;Fixation gaze 相对目标的偏差 (°)&quot;);
+
+    const overlay = appendSvg(plot, &quot;rect&quot;, {
+      class: &quot;hit-overlay&quot;,
+      &quot;data-chart-hit&quot;: &quot;&quot;,
+      &quot;data-chart-hover-overlay&quot;: &quot;cross-series&quot;,
+      width: innerWidth,
+      height: innerHeight
+    });
+    overlay.addEventListener(&quot;mousemove&quot;, event =&gt; {
+      const rectangle = overlay.getBoundingClientRect();
+      const mx = (event.clientX - rectangle.left) * innerWidth / rectangle.width;
+      const minute = x.invert(mx);
+      let nearest = data[0];
+      let bestDistance = Math.abs(nearest.minute - minute);
+      for (let index = 1; index &lt; data.length; index += 1) {
+        const distance = Math.abs(data[index].minute - minute);
+        if (distance &lt; bestDistance) {
+          nearest = data[index];
+          bestDistance = distance;
+        }
+      }
+      showTooltip(event, nearest);
+    });
+    overlay.addEventListener(&quot;mouseleave&quot;, hideTooltip);
+  }
+
+  function redraw() {
+    drawPairPlot();
+    drawTimePlot();
+  }
+
+  root.querySelector(&quot;#eyelink-epoch-select&quot;).addEventListener(&quot;change&quot;, event =&gt; {
+    state.epoch = event.target.value;
+    drawPairPlot();
+  });
+  root.querySelectorAll(&quot;.series-toggle&quot;).forEach(button =&gt; {
+    button.addEventListener(&quot;click&quot;, () =&gt; {
+      const series = button.dataset.series;
+      state[series] = !state[series];
+      button.setAttribute(&quot;aria-pressed&quot;, String(state[series]));
+      drawPairPlot();
+    });
+  });
+
+  const observer = new ResizeObserver(redraw);
+  observer.observe(root);
+  redraw();
+})();
+&lt;/script&gt;
+
+&lt;script src=&quot;https://unpkg.com/@floating-ui/core@1.7.3/dist/floating-ui.core.umd.min.js&quot;&gt;&lt;/script&gt;
+&lt;script src=&quot;https://unpkg.com/@floating-ui/dom@1.7.4/dist/floating-ui.dom.umd.min.js&quot;&gt;&lt;/script&gt;
+&lt;script&gt;
+(() =&gt; {
+  if (window.FloatingUIDOM == null) {
+    return;
+  }
+  const { autoUpdate, computePosition, flip, offset, shift, size } =
+    window.FloatingUIDOM;
+  const tooltipPlacements = new Set([&quot;top&quot;, &quot;right&quot;, &quot;bottom&quot;, &quot;left&quot;]);
+  const tooltipId = `codex-visualization-tooltip-${
+    window.crypto?.randomUUID?.() ?? Date.now().toString(36)
+  }`;
+  const tooltipGap = 5;
+  const hoverDelay = 700;
+  const skipDelay = 300;
+  let activeTrigger = null;
+  let pendingTrigger = null;
+  let tooltip = null;
+  let openTimeout = null;
+  let autoUpdateCleanup = null;
+  let positionRequest = 0;
+  let skipDelayUntil = 0;
+
+  const getTrigger = (target) =&gt;
+    target?.nodeType === Node.ELEMENT_NODE
+      ? target.closest(&quot;[data-tooltip]&quot;)
+      : null;
+  const containsTarget = (trigger, target) =&gt;
+    target?.nodeType != null &amp;&amp; trigger.contains(target);
+  const getContent = (trigger) =&gt;
+    trigger.getAttribute(&quot;data-tooltip&quot;)?.trim() ?? &quot;&quot;;
+  const getPlacement = (trigger) =&gt; {
+    const placement = trigger.getAttribute(&quot;data-tooltip-placement&quot;);
+    return tooltipPlacements.has(placement) ? placement : &quot;top&quot;;
+  };
+  const getTooltip = () =&gt; {
+    if (tooltip == null) {
+      tooltip = document.createElement(&quot;div&quot;);
+      tooltip.id = tooltipId;
+      tooltip.className = &quot;tooltip&quot;;
+      tooltip.setAttribute(&quot;role&quot;, &quot;tooltip&quot;);
+    }
+    return tooltip;
+  };
+  const setDescribedBy = (trigger, described) =&gt; {
+    const ids = new Set(
+      (trigger.getAttribute(&quot;aria-describedby&quot;) ?? &quot;&quot;)
+        .split(/\s+/)
+        .filter(Boolean),
+    );
+    if (described) {
+      ids.add(tooltipId);
+    } else {
+      ids.delete(tooltipId);
+    }
+    if (ids.size === 0) {
+      trigger.removeAttribute(&quot;aria-describedby&quot;);
+    } else {
+      trigger.setAttribute(&quot;aria-describedby&quot;, [...ids].join(&quot; &quot;));
+    }
+  };
+  const clearOpenTimeout = () =&gt; {
+    if (openTimeout != null) {
+      window.clearTimeout(openTimeout);
+      openTimeout = null;
+    }
+    pendingTrigger = null;
+  };
+  const closeTooltip = (activateSkipDelay = true) =&gt; {
+    clearOpenTimeout();
+    positionRequest += 1;
+    autoUpdateCleanup?.();
+    autoUpdateCleanup = null;
+    if (activeTrigger == null) {
+      return;
+    }
+    setDescribedBy(activeTrigger, false);
+    activeTrigger = null;
+    tooltip?.remove();
+    if (activateSkipDelay) {
+      skipDelayUntil = Date.now() + skipDelay;
+    }
+  };
+  const updatePosition = (trigger, floating) =&gt; {
+    const request = ++positionRequest;
+    void computePosition(trigger, floating, {
+      middleware: [
+        offset(tooltipGap),
+        flip({ padding: tooltipGap }),
+        shift({ padding: tooltipGap }),
+        size({
+          padding: tooltipGap,
+          apply({ availableHeight, availableWidth, elements }) {
+            elements.floating.style.setProperty(
+              &quot;--tooltip-available-width&quot;,
+              `${Math.max(0, availableWidth)}px`,
+            );
+            elements.floating.style.setProperty(
+              &quot;--tooltip-available-height&quot;,
+              `${Math.max(0, availableHeight)}px`,
+            );
+          },
+        }),
+      ],
+      placement: getPlacement(trigger),
+      strategy: &quot;fixed&quot;,
+    })
+      .then(({ x, y }) =&gt; {
+        if (activeTrigger !== trigger || request !== positionRequest) {
+          return;
+        }
+        const scale = window.devicePixelRatio || 1;
+        floating.style.transform = `translate(${Math.round(x * scale) / scale}px, ${Math.round(y * scale) / scale}px)`;
+        floating.style.visibility = &quot;visible&quot;;
+      })
+      .catch(() =&gt; {
+        if (activeTrigger === trigger &amp;&amp; request === positionRequest) {
+          closeTooltip(false);
+        }
+      });
+  };
+  const openTooltip = (trigger) =&gt; {
+    const content = getContent(trigger);
+    if (!trigger.isConnected || content.length === 0) {
+      return;
+    }
+    clearOpenTimeout();
+    if (activeTrigger === trigger) {
+      return;
+    }
+    closeTooltip();
+    const floating = getTooltip();
+    floating.textContent = content;
+    floating.style.visibility = &quot;hidden&quot;;
+    floating.style.transform = &quot;translate(0, 0)&quot;;
+    document.body.appendChild(floating);
+    activeTrigger = trigger;
+    setDescribedBy(trigger, true);
+    autoUpdateCleanup = autoUpdate(trigger, floating, () =&gt; {
+      updatePosition(trigger, floating);
+    });
+  };
+  const requestOpen = (trigger, immediate = false) =&gt; {
+    if (
+      getContent(trigger).length === 0 ||
+      activeTrigger === trigger ||
+      pendingTrigger === trigger
+    ) {
+      return;
+    }
+    clearOpenTimeout();
+    pendingTrigger = trigger;
+    const delay =
+      immediate || activeTrigger != null || Date.now() &lt; skipDelayUntil
+        ? 0
+        : hoverDelay;
+    if (delay === 0) {
+      openTooltip(trigger);
+      return;
+    }
+    openTimeout = window.setTimeout(() =&gt; {
+      openTimeout = null;
+      pendingTrigger = null;
+      openTooltip(trigger);
+    }, delay);
+  };
+  const handlePointerOpen = (event) =&gt; {
+    if (event.pointerType === &quot;touch&quot;) {
+      return;
+    }
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    requestOpen(trigger);
+  };
+  const handleLeave = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const handleFocusIn = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (trigger?.matches(&quot;:focus-visible&quot;)) {
+      requestOpen(trigger, true);
+    }
+  };
+  const handleKeyDown = (event) =&gt; {
+    if (event.key === &quot;Escape&quot;) {
+      closeTooltip();
+    }
+  };
+  const handleContextMenu = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const destroy = () =&gt; {
+    closeTooltip(false);
+    document.removeEventListener(&quot;pointerover&quot;, handlePointerOpen);
+    document.removeEventListener(&quot;pointerout&quot;, handleLeave);
+    document.removeEventListener(&quot;focusin&quot;, handleFocusIn);
+    document.removeEventListener(&quot;focusout&quot;, handleLeave);
+    document.removeEventListener(&quot;keydown&quot;, handleKeyDown);
+    document.removeEventListener(&quot;contextmenu&quot;, handleContextMenu);
+    tooltip = null;
+  };
+
+  document.addEventListener(&quot;pointerover&quot;, handlePointerOpen);
+  document.addEventListener(&quot;pointerout&quot;, handleLeave);
+  document.addEventListener(&quot;focusin&quot;, handleFocusIn);
+  document.addEventListener(&quot;focusout&quot;, handleLeave);
+  document.addEventListener(&quot;keydown&quot;, handleKeyDown);
+  document.addEventListener(&quot;contextmenu&quot;, handleContextMenu);
+  window.addEventListener(&quot;pagehide&quot;, destroy, { once: true });
+})();
+&lt;/script&gt;
+&lt;script id=&quot;codex-visualization-lucide&quot; async src=&quot;https://unpkg.com/lucide@1.17.0/dist/umd/lucide.js&quot;&gt;&lt;/script&gt;
+&lt;script&gt;
+(() =&gt; {
+  const initialize = () =&gt; {
+    globalThis.lucide?.createIcons({ attrs: { width: 16, height: 16 } });
+  };
+  if (globalThis.lucide != null) {
+    initialize();
+    return;
+  }
+  document
+    .getElementById(&quot;codex-visualization-lucide&quot;)
+    ?.addEventListener(&quot;load&quot;, initialize, { once: true });
+})();
+&lt;/script&gt;
+
+&lt;/body&gt;
+&lt;/html&gt;
+"></iframe>
+</body>
+</html>
