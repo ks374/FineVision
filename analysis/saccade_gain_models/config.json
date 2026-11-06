@@ -1,0 +1,42 @@
+{
+  "analysis_name": "First-saccade gain and latency models, 2026-08-06 and combined 2026-08-07 sessions",
+  "data_root": "D:/Chenghang/Training_Log",
+  "background_luminance_cd_m2": 5.0,
+  "minimum_saccade_amplitude_deg": 1.0,
+  "minimum_visual_latency_ms": 80.0,
+  "bootstrap_repetitions": 5000,
+  "random_seed": 20260824,
+  "reference_session": "8/6",
+  "sessions": [
+    {
+      "label": "8/6",
+      "instance_label": "8/6",
+      "session_id": "SaccadeMultiStim_20260806_143334",
+      "folder": "20260806/SaccadeMultiStim_20260806_143334",
+      "sample_source": "href",
+      "calibration_file": "20260806/eyelink_calibration_20260806_142607.json"
+    },
+    {
+      "label": "8/7",
+      "instance_label": "8/7 first, interrupted",
+      "session_id": "SaccadeMultiStim_20260807_141246",
+      "folder": "20260807/SaccadeMultiStim_20260807_141246",
+      "sample_source": "gaze",
+      "calibration_file": null
+    },
+    {
+      "label": "8/7",
+      "instance_label": "8/7 second",
+      "session_id": "SaccadeMultiStim_20260807_144555",
+      "folder": "20260807/SaccadeMultiStim_20260807_144555",
+      "sample_source": "gaze",
+      "calibration_file": null
+    }
+  ],
+  "excluded_sessions": [
+    {
+      "session_id": "SaccadeMultiStim_20260805_161709",
+      "reason": "Removed because only 13 trials survived the pre-specified 80 ms latency cutoff"
+    }
+  ]
+}

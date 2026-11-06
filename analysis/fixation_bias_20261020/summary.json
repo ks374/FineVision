@@ -1,0 +1,114 @@
+{
+  "task_parameters": {
+    "Subject ID": "Monkey_H18",
+    "Simulate stimulation": false,
+    "HW bank start": 0,
+    "Random seed": 20261014,
+    "RF x_min (deg)": 0.0,
+    "RF x_max (deg)": 18.0,
+    "RF y_min (deg)": -18.0,
+    "RF y_max (deg)": 0.0,
+    "Control calibrated level": 150,
+    "Target diameter (deg)": 0.1,
+    "Wait Time (s)": 5.0,
+    "Fixation Position X (deg)": -3.0,
+    "Fixation Position Y (deg)": 6.0,
+    "Fixation Point Radius (deg)": 0.02,
+    "Fix Window Radius (deg)": 2.5,
+    "Fixation Duration Min (ms)": 300.0,
+    "Fixation Duration Max (ms)": 800.0,
+    "Gap Duration (ms)": 100.0,
+    "Control window radius (deg)": 2.5,
+    "Control hold (ms)": 50.0,
+    "Saccade threshold (deg)": 0.75,
+    "Response after stim (ms)": 300.0,
+    "Event arrival grace (ms)": 100.0,
+    "Reward electrical nofix_2": true,
+    "Reward Length (s)": 0.5,
+    "ITI (s)": 4.0,
+    "Timeout (s)": 0.5,
+    "Viewing Distance (cm)": 60.0,
+    "Subject Monitor Width (cm)": 54.0,
+    "Subject Monitor Height (cm)": 30.0,
+    "Trodes address": "tcp://127.0.0.1:49152"
+  },
+  "fixation_center_px": [
+    -111.80326247048792,
+    227.02514817386114
+  ],
+  "fixation_radius_px": 93.14334487149239,
+  "total_attempts": 782,
+  "statuses": {
+    "success": 355,
+    "nofix_2": 265,
+    "break_1": 112,
+    "nofix": 49,
+    "aborted": 1
+  },
+  "acquired_attempts": 732,
+  "analyzed_attempts": 732,
+  "completed_fixation_attempts": 628,
+  "all_hold_frames": {
+    "n_frames": 33383,
+    "median_dx_px": 30.103250263456673,
+    "median_dy_px": 38.77483961910761,
+    "right_up_fraction": 0.9326603360992122,
+    "median_radius_fraction": 0.5570641961687411,
+    "outer20_fraction": 0.08168828445616032
+  },
+  "completed_hold_frames": {
+    "n_frames": 32553,
+    "median_dx_px": 30.103250263456673,
+    "median_dy_px": 38.574857929654485,
+    "right_up_fraction": 0.939083955395816,
+    "median_radius_fraction": 0.553465652830205,
+    "outer20_fraction": 0.07111479740730502
+  },
+  "trial_median_dx_px": 30.128274677519173,
+  "trial_median_dy_px": 39.82484267086542,
+  "trial_median_dx_deg": 0.8074932629005196,
+  "trial_median_dy_deg": 1.042730530487138,
+  "right_up_trial_medians": 675,
+  "early_late": [
+    {
+      "attempt_range": [
+        1,
+        183
+      ],
+      "dx_px": 28.203286884550423,
+      "dy_px": 42.074857929654485
+    },
+    {
+      "attempt_range": [
+        184,
+        367
+      ],
+      "dx_px": 30.003274677519173,
+      "dy_px": 38.874845722623235
+    },
+    {
+      "attempt_range": [
+        368,
+        563
+      ],
+      "dx_px": 31.103280781034798,
+      "dy_px": 38.67485640377558
+    },
+    {
+      "attempt_range": [
+        564,
+        780
+      ],
+      "dx_px": 31.003274677519173,
+      "dy_px": 39.42484877438105
+    }
+  ],
+  "completed_trial_medians": {
+    "n": 628,
+    "right_up_n": 614,
+    "median_dx_px": 30.128274677519173,
+    "median_dy_px": 38.82484267086542,
+    "median_dx_deg": 0.8074932629005196,
+    "median_dy_deg": 1.0166020018388346
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "baseline_median_radial_px": 49.84932128620797,
+  "n_completed_attempts": 628,
+  "seed": 20261020,
+  "repeats": 20,
+  "estimator": "coordinate-wise median of per-attempt median offsets",
+  "metric": "median radial distance of held-out per-attempt median gaze positions",
+  "errorbar": "sample standard deviation across 20 repetitions",
+  "summary": [
+    {
+      "n_fixations": 1,
+      "mean_median_distance_px": 16.590494464736018,
+      "sd_px": 5.97543319749938,
+      "min_px": 11.60906118143518,
+      "max_px": 37.92465681752256
+    },
+    {
+      "n_fixations": 2,
+      "mean_median_distance_px": 16.59147387425807,
+      "sd_px": 8.988885886692467,
+      "min_px": 11.430775719421387,
+      "max_px": 52.31514742683646
+    },
+    {
+      "n_fixations": 3,
+      "mean_median_distance_px": 13.07214846081304,
+      "sd_px": 1.381042963197583,
+      "min_px": 11.512702242724755,
+      "max_px": 15.65961999625796
+    },
+    {
+      "n_fixations": 4,
+      "mean_median_distance_px": 14.943406616266458,
+      "sd_px": 5.378816538197584,
+      "min_px": 11.243647755084467,
+      "max_px": 32.1984358959935
+    },
+    {
+      "n_fixations": 5,
+      "mean_median_distance_px": 14.337545606978106,
+      "sd_px": 3.5200318579032093,
+      "min_px": 11.385096019723834,
+      "max_px": 26.45798236123624
+    },
+    {
+      "n_fixations": 6,
+      "mean_median_distance_px": 12.602581554455831,
+      "sd_px": 1.1911062535942827,
+      "min_px": 11.346907913341393,
+      "max_px": 15.662358388677468
+    },
+    {
+      "n_fixations": 7,
+      "mean_median_distance_px": 12.89844304082817,
+      "sd_px": 1.5805135139963857,
+      "min_px": 11.121344655517872,
+      "max_px": 17.316252422549027
+    },
+    {
+      "n_fixations": 8,
+      "mean_median_distance_px": 12.448522441460716,
+      "sd_px": 1.2312956517869056,
+      "min_px": 11.233234598274997,
+      "max_px": 15.793511520583976
+    },
+    {
+      "n_fixations": 9,
+      "mean_median_distance_px": 12.542592535559656,
+      "sd_px": 2.0756532185285583,
+      "min_px": 11.313789933194249,
+      "max_px": 20.500045761443346
+    },
+    {
+      "n_fixations": 10,
+      "mean_median_distance_px": 12.536063539410854,
+      "sd_px": 1.158004407966508,
+      "min_px": 11.528682521647028,
+      "max_px": 16.1149200177203
+    }
+  ]
+}

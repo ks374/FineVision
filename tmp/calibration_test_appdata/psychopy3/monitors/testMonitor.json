@@ -1,0 +1,46 @@
+{
+  "2026_10_20 14:34": {
+    "calibDate": 1792478049.0,
+    "gamma": 1.0,
+    "width": 30,
+    "distance": 57,
+    "notes": "default (not very useful) monitor",
+    "psychopyVersion": "2026.1.2",
+    "usebits": false,
+    "gammaGrid": {
+      "__ndarray__": [
+        [
+          0.0,
+          1.0,
+          1.0
+        ],
+        [
+          0.0,
+          1.0,
+          1.0
+        ],
+        [
+          0.0,
+          1.0,
+          1.0
+        ],
+        [
+          0.0,
+          1.0,
+          1.0
+        ]
+      ],
+      "dtype": "float64",
+      "shape": [
+        4,
+        3
+      ],
+      "Corder": true
+    },
+    "linearizeMethod": 1,
+    "sizePix": [
+      1024,
+      768
+    ]
+  }
+}

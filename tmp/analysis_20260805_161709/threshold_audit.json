@@ -1,0 +1,579 @@
+{
+  "source": "D:\\Chenghang\\Training_Log_Huanhuan\\20260805\\SaccadeMultiStim_20260805_161709",
+  "edf_bytes": 13028956,
+  "trials": 101,
+  "status_counts": {
+    "Control_Reward": 2,
+    "Break_2": 3,
+    "Success": 81,
+    "Break_1": 4,
+    "nofix_1": 11
+  },
+  "right_eye_saccades": 1021,
+  "message_count": 1741,
+  "event_type_counts": {
+    "24": 1741,
+    "30": 2,
+    "17": 1,
+    "25": 2,
+    "28": 2,
+    "7": 1022,
+    "8": 1022,
+    "5": 1021,
+    "6": 1021,
+    "3": 236,
+    "4": 236,
+    "18": 1
+  },
+  "sample_event_examples": [
+    {
+      "start_ms": 20894024,
+      "end_ms": 20894060,
+      "amplitude_deg": 11.567666479392795,
+      "vendor_amp": 7.193332559047642,
+      "duration_ms": 36,
+      "peak_velocity": 393.6000061035156,
+      "start_deg": [
+        19.35986990604993,
+        -11.39961366877959
+      ],
+      "end_deg": [
+        9.359468183553108,
+        -5.585589832644215
+      ],
+      "start_px": [
+        1684.5999755859375,
+        961.0
+      ],
+      "end_px": [
+        1299.9000244140625,
+        744.2000122070312
+      ],
+      "status_flags": 0
+    },
+    {
+      "start_ms": 20894235,
+      "end_ms": 20894271,
+      "amplitude_deg": 19.772539693630637,
+      "vendor_amp": 12.257428257744277,
+      "duration_ms": 36,
+      "peak_velocity": 748.7999877929688,
+      "start_deg": [
+        8.844795830845676,
+        -5.58287077003358
+      ],
+      "end_deg": [
+        15.610751457310327,
+        12.996019681145428
+      ],
+      "start_px": [
+        1280.9000244140625,
+        744.0999755859375
+      ],
+      "end_px": [
+        1536.199951171875,
+        58.099998474121094
+      ],
+      "status_flags": 0
+    },
+    {
+      "start_ms": 20894923,
+      "end_ms": 20894981,
+      "amplitude_deg": 28.769599957276306,
+      "vendor_amp": 17.48203344008958,
+      "duration_ms": 58,
+      "peak_velocity": 578.9000244140625,
+      "start_deg": [
+        16.293961197137747,
+        13.141829157195712
+      ],
+      "end_deg": [
+        13.46595779863021,
+        -15.488439414365798
+      ],
+      "start_px": [
+        1562.800048828125,
+        52.5
+      ],
+      "end_px": [
+        1453.800048828125,
+        1118.5999755859375
+      ],
+      "status_flags": 0
+    },
+    {
+      "start_ms": 20895381,
+      "end_ms": 20895508,
+      "amplitude_deg": 50.818267723394676,
+      "vendor_amp": 31.780381104320234,
+      "duration_ms": 127,
+      "peak_velocity": 1873.0999755859375,
+      "start_deg": [
+        12.558680340276894,
+        -15.74296061263304
+      ],
+      "end_deg": [
+        -2.168855235718461,
+        32.894432720731444
+      ],
+      "start_px": [
+        1419.4000244140625,
+        1128.5999755859375
+      ],
+      "end_px": [
+        881.9000244140625,
+        -810.5
+      ],
+      "status_flags": 0
+    },
+    {
+      "start_ms": 20895751,
+      "end_ms": 20895758,
+      "amplitude_deg": 0.5372023096011475,
+      "vendor_amp": 0.4413337299053258,
+      "duration_ms": 7,
+      "peak_velocity": 60.5,
+      "start_deg": [
+        -2.038450083676168,
+        34.86105442869609
+      ],
+      "end_deg": [
+        -2.188275929591996,
+        35.376940595729494
+      ],
+      "start_px": [
+        886.5999755859375,
+        -914.5
+      ],
+      "end_px": [
+        881.2000122070312,
+        -942.5999755859375
+      ],
+      "status_flags": 0
+    }
+  ],
+  "event_marker_examples": [
+    {
+      "trial": 1,
+      "status": "Control_Reward",
+      "is_control": "True",
+      "target": [
+        4.5,
+        -4.5
+      ],
+      "markers": {
+        "FIX_ON": 20923514,
+        "GAZE_ACQUIRED": 20924167,
+        "FIX_OFF": 20924385,
+        "STIM_ON": 20924496,
+        "STIM_OFF": 20924703,
+        "STIM_WINDOW_END": 20924703
+      },
+      "fixation": {
+        "duration_ms": 218,
+        "count": 1,
+        "qualifying_count": 1
+      },
+      "gap": {
+        "duration_ms": 111,
+        "count": 0,
+        "qualifying_count": 0
+      },
+      "postvisual": {
+        "duration_ms": 467,
+        "count": 1,
+        "qualifying_count": 1
+      }
+    },
+    {
+      "trial": 2,
+      "status": "Break_2",
+      "is_control": "False",
+      "target": [
+        9.0,
+        -9.0
+      ],
+      "markers": {
+        "FIX_ON": 20928046,
+        "GAZE_ACQUIRED": 20928349,
+        "FIX_OFF": 20928803,
+        "STIM_ON": 20928911,
+        "STIM_OFF": 20929121,
+        "STIM_WINDOW_END": 20929622
+      },
+      "fixation": {
+        "duration_ms": 454,
+        "count": 2,
+        "qualifying_count": 2
+      },
+      "gap": {
+        "duration_ms": 108,
+        "count": 1,
+        "qualifying_count": 1
+      },
+      "postvisual": {
+        "duration_ms": 467,
+        "count": 2,
+        "qualifying_count": 2
+      }
+    },
+    {
+      "trial": 3,
+      "status": "Break_2",
+      "is_control": "False",
+      "target": [
+        9.0,
+        -9.0
+      ],
+      "markers": {
+        "FIX_ON": 20933202,
+        "GAZE_ACQUIRED": 20933581,
+        "FIX_OFF": 20934014,
+        "STIM_ON": 20934121,
+        "STIM_OFF": 20934332,
+        "STIM_WINDOW_END": 20934829
+      },
+      "fixation": {
+        "duration_ms": 433,
+        "count": 1,
+        "qualifying_count": 0
+      },
+      "gap": {
+        "duration_ms": 107,
+        "count": 0,
+        "qualifying_count": 0
+      },
+      "postvisual": {
+        "duration_ms": 467,
+        "count": 1,
+        "qualifying_count": 1
+      }
+    },
+    {
+      "trial": 4,
+      "status": "Success",
+      "is_control": "False",
+      "target": [
+        9.0,
+        -9.0
+      ],
+      "markers": {
+        "FIX_ON": 20945592,
+        "GAZE_ACQUIRED": 20945921,
+        "FIX_OFF": 20946119,
+        "STIM_ON": 20946225,
+        "STIM_OFF": 20946432,
+        "STIM_WINDOW_END": 20946468
+      },
+      "fixation": {
+        "duration_ms": 198,
+        "count": 0,
+        "qualifying_count": 0
+      },
+      "gap": {
+        "duration_ms": 106,
+        "count": 0,
+        "qualifying_count": 0
+      },
+      "postvisual": {
+        "duration_ms": 467,
+        "count": 2,
+        "qualifying_count": 2
+      }
+    }
+  ],
+  "thresholds": {
+    "fixation": {
+      "trial_count": 86,
+      "duration_s": 34.148,
+      "event_count": 22,
+      "amp_quantiles": {
+        "0": 0.1547,
+        "0.1": 0.3441,
+        "0.25": 0.4395,
+        "0.5": 0.5598,
+        "0.75": 0.799,
+        "0.9": 1.1657,
+        "0.95": 2.5901,
+        "0.99": 2.8311,
+        "1": 2.8756
+      },
+      "thresholds": {
+        "0.25": {
+          "event_count": 20,
+          "trial_count": 19,
+          "trial_rate": 0.22093023255813954,
+          "events_per_minute": 35.14115028698606
+        },
+        "0.35": {
+          "event_count": 19,
+          "trial_count": 19,
+          "trial_rate": 0.22093023255813954,
+          "events_per_minute": 33.384092772636755
+        },
+        "0.5": {
+          "event_count": 15,
+          "trial_count": 15,
+          "trial_rate": 0.1744186046511628,
+          "events_per_minute": 26.355862715239546
+        },
+        "0.7": {
+          "event_count": 6,
+          "trial_count": 6,
+          "trial_rate": 0.06976744186046512,
+          "events_per_minute": 10.542345086095818
+        },
+        "0.75": {
+          "event_count": 6,
+          "trial_count": 6,
+          "trial_rate": 0.06976744186046512,
+          "events_per_minute": 10.542345086095818
+        },
+        "1.0": {
+          "event_count": 3,
+          "trial_count": 3,
+          "trial_rate": 0.03488372093023256,
+          "events_per_minute": 5.271172543047909
+        },
+        "1.5": {
+          "event_count": 2,
+          "trial_count": 2,
+          "trial_rate": 0.023255813953488372,
+          "events_per_minute": 3.514115028698606
+        },
+        "2.0": {
+          "event_count": 2,
+          "trial_count": 2,
+          "trial_rate": 0.023255813953488372,
+          "events_per_minute": 3.514115028698606
+        }
+      },
+      "vendor_ppd_at_0_25": {
+        "event_count": 18,
+        "trial_count": 18
+      }
+    },
+    "gap": {
+      "trial_count": 86,
+      "duration_s": 9.218,
+      "event_count": 5,
+      "amp_quantiles": {
+        "0": 0.2711,
+        "0.1": 0.3099,
+        "0.25": 0.368,
+        "0.5": 0.4197,
+        "0.75": 0.5107,
+        "0.9": 0.5981,
+        "0.95": 0.6273,
+        "0.99": 0.6506,
+        "1": 0.6564
+      },
+      "thresholds": {
+        "0.25": {
+          "event_count": 5,
+          "trial_count": 5,
+          "trial_rate": 0.05813953488372093,
+          "events_per_minute": 32.54502061184639
+        },
+        "0.35": {
+          "event_count": 4,
+          "trial_count": 4,
+          "trial_rate": 0.046511627906976744,
+          "events_per_minute": 26.03601648947711
+        },
+        "0.5": {
+          "event_count": 2,
+          "trial_count": 2,
+          "trial_rate": 0.023255813953488372,
+          "events_per_minute": 13.018008244738555
+        },
+        "0.7": {
+          "event_count": 0,
+          "trial_count": 0,
+          "trial_rate": 0.0,
+          "events_per_minute": 0.0
+        },
+        "0.75": {
+          "event_count": 0,
+          "trial_count": 0,
+          "trial_rate": 0.0,
+          "events_per_minute": 0.0
+        },
+        "1.0": {
+          "event_count": 0,
+          "trial_count": 0,
+          "trial_rate": 0.0,
+          "events_per_minute": 0.0
+        },
+        "1.5": {
+          "event_count": 0,
+          "trial_count": 0,
+          "trial_rate": 0.0,
+          "events_per_minute": 0.0
+        },
+        "2.0": {
+          "event_count": 0,
+          "trial_count": 0,
+          "trial_rate": 0.0,
+          "events_per_minute": 0.0
+        }
+      },
+      "vendor_ppd_at_0_25": {
+        "event_count": 3,
+        "trial_count": 3
+      }
+    },
+    "postvisual": {
+      "trial_count": 86,
+      "duration_s": 40.162,
+      "event_count": 96,
+      "amp_quantiles": {
+        "0": 0.4255,
+        "0.1": 0.9283,
+        "0.25": 5.2592,
+        "0.5": 9.6347,
+        "0.75": 13.2236,
+        "0.9": 15.6283,
+        "0.95": 16.1477,
+        "0.99": 22.3882,
+        "1": 25.2687
+      },
+      "thresholds": {
+        "0.25": {
+          "event_count": 96,
+          "trial_count": 77,
+          "trial_rate": 0.8953488372093024,
+          "events_per_minute": 143.41915243264776
+        },
+        "0.35": {
+          "event_count": 96,
+          "trial_count": 77,
+          "trial_rate": 0.8953488372093024,
+          "events_per_minute": 143.41915243264776
+        },
+        "0.5": {
+          "event_count": 95,
+          "trial_count": 77,
+          "trial_rate": 0.8953488372093024,
+          "events_per_minute": 141.92520292814103
+        },
+        "0.7": {
+          "event_count": 91,
+          "trial_count": 76,
+          "trial_rate": 0.8837209302325582,
+          "events_per_minute": 135.94940491011403
+        },
+        "0.75": {
+          "event_count": 91,
+          "trial_count": 76,
+          "trial_rate": 0.8837209302325582,
+          "events_per_minute": 135.94940491011403
+        },
+        "1.0": {
+          "event_count": 84,
+          "trial_count": 76,
+          "trial_rate": 0.8837209302325582,
+          "events_per_minute": 125.4917583785668
+        },
+        "1.5": {
+          "event_count": 79,
+          "trial_count": 75,
+          "trial_rate": 0.872093023255814,
+          "events_per_minute": 118.02201085603306
+        },
+        "2.0": {
+          "event_count": 77,
+          "trial_count": 75,
+          "trial_rate": 0.872093023255814,
+          "events_per_minute": 115.03411184701957
+        }
+      },
+      "vendor_ppd_at_0_25": {
+        "event_count": 96,
+        "trial_count": 77
+      }
+    }
+  },
+  "positive_visual_noncontrol_success_target_distance_ge3": {
+    "trial_count": 72,
+    "thresholds": {
+      "0.25": {
+        "detected_count": 72,
+        "detected_rate": 1.0,
+        "end_within_2_5deg_count": 0,
+        "end_within_2_5deg_rate": 0.0,
+        "median_first_endpoint_error_deg": 17.8368
+      },
+      "0.35": {
+        "detected_count": 72,
+        "detected_rate": 1.0,
+        "end_within_2_5deg_count": 0,
+        "end_within_2_5deg_rate": 0.0,
+        "median_first_endpoint_error_deg": 17.8368
+      },
+      "0.5": {
+        "detected_count": 72,
+        "detected_rate": 1.0,
+        "end_within_2_5deg_count": 0,
+        "end_within_2_5deg_rate": 0.0,
+        "median_first_endpoint_error_deg": 17.8368
+      },
+      "0.7": {
+        "detected_count": 71,
+        "detected_rate": 0.9861111111111112,
+        "end_within_2_5deg_count": 0,
+        "end_within_2_5deg_rate": 0.0,
+        "median_first_endpoint_error_deg": 17.7207
+      },
+      "0.75": {
+        "detected_count": 71,
+        "detected_rate": 0.9861111111111112,
+        "end_within_2_5deg_count": 0,
+        "end_within_2_5deg_rate": 0.0,
+        "median_first_endpoint_error_deg": 17.7207
+      },
+      "1.0": {
+        "detected_count": 71,
+        "detected_rate": 0.9861111111111112,
+        "end_within_2_5deg_count": 0,
+        "end_within_2_5deg_rate": 0.0,
+        "median_first_endpoint_error_deg": 17.7207
+      },
+      "1.5": {
+        "detected_count": 71,
+        "detected_rate": 0.9861111111111112,
+        "end_within_2_5deg_count": 0,
+        "end_within_2_5deg_rate": 0.0,
+        "median_first_endpoint_error_deg": 17.7207
+      },
+      "2.0": {
+        "detected_count": 71,
+        "detected_rate": 0.9861111111111112,
+        "end_within_2_5deg_count": 0,
+        "end_within_2_5deg_rate": 0.0,
+        "median_first_endpoint_error_deg": 17.7207
+      }
+    }
+  },
+  "positive_visual_first_event_diagnostics": {
+    "latency_quantiles_ms": {
+      "0": 63,
+      "0.1": 66.0,
+      "0.25": 69.75,
+      "0.5": 76.0,
+      "0.75": 83.25,
+      "0.9": 108.9,
+      "1": 146
+    },
+    "latency_below_80ms": 44,
+    "latency_80_to_300ms": 28,
+    "first_event_toward_target_cosine_gt_0_5": 27,
+    "direction_cosine_quantiles": {
+      "0": -0.9904,
+      "0.25": -0.8121,
+      "0.5": -0.0097,
+      "0.75": 0.6938,
+      "1": 1.0
+    }
+  }
+}

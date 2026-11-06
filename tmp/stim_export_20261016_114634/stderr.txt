@@ -1,0 +1,3 @@
+Exporting data...
+QProcess: Destroyed while process ("D:\\SpikeGaudgets_Trodes\\Trodes_2-8-1_Windows11\\.\\Resources\\SetupHelp\\Windows\\Coreinfo") is still running.
+No AVX support detected. It is required for this program to work.

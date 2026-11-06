@@ -1,0 +1,4 @@
+session,session_instance,session_id,logged_trials,successful_noncontrol,sensitivity_trials,main_trials
+8/6,8/6,SaccadeMultiStim_20260806_143334,829,588,455,380
+8/7,"8/7 first, interrupted",SaccadeMultiStim_20260807_141246,265,133,112,75
+8/7,8/7 second,SaccadeMultiStim_20260807_144555,586,384,306,236

@@ -1,0 +1,60 @@
+{
+  "total_trials": 782,
+  "statuses": {
+    "success": 355,
+    "nofix_2": 265,
+    "break_1": 112,
+    "nofix": 49,
+    "aborted": 1
+  },
+  "excluded": {
+    "nofix_2": 265,
+    "nofix": 49,
+    "aborted": 1
+  },
+  "all": {
+    "n": 467,
+    "median_ms": 19.0,
+    "mean_ms": 21.323340471092077,
+    "p05_ms": 13.0,
+    "p95_ms": 24.69999999999999,
+    "min_ms": 2,
+    "max_ms": 258
+  },
+  "not_already_inside": {
+    "n": 457,
+    "median_ms": 19.0,
+    "mean_ms": 21.680525164113785,
+    "p05_ms": 14.0,
+    "p95_ms": 25.0,
+    "min_ms": 2,
+    "max_ms": 258
+  },
+  "single_entry_not_already_inside": {
+    "n": 420,
+    "median_ms": 18.0,
+    "mean_ms": 18.447619047619046,
+    "p05_ms": 14.0,
+    "p95_ms": 23.0,
+    "min_ms": 2,
+    "max_ms": 34
+  },
+  "last_entry": {
+    "n": 457,
+    "median_ms": 18.0,
+    "mean_ms": 17.86870897155361,
+    "p05_ms": 12.8,
+    "p95_ms": 23.0,
+    "min_ms": 0,
+    "max_ms": 34
+  },
+  "multiple_entry_n": 37,
+  "already_inside_n": 10,
+  "outside_at_fixon_n": 58,
+  "sample_count": 4866769,
+  "fixation_center_centered_px": [
+    -111.80326247048792,
+    227.02514817386114
+  ],
+  "radius_px": 93.14334487149239
+}

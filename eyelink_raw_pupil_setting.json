@@ -1,0 +1,105 @@
+{
+  "default_left_cal": {
+    "model": "affine_2d",
+    "ox": 0.0,
+    "oy": 0.0,
+    "gx": 1.0,
+    "gy": 1.0,
+    "gxy": 0.0,
+    "gyx": 0.0
+  },
+  "default_right_cal": {
+    "model": "affine_2d",
+    "ox": 1315.19827872616,
+    "oy": -1426.6298814615807,
+    "gx": 0.24359164626129864,
+    "gy": -0.29441649336557807,
+    "gxy": -0.00849363024608854,
+    "gyx": 0.010245383886568066
+  },
+  "calibration_metadata": {
+    "session_id": "Validation_Monkey_H18_20261105_105932_622473",
+    "source": "validation_refit",
+    "independently_validated": false,
+    "sample_source": "raw",
+    "parameters": {
+      "Subject ID": "Monkey_H18",
+      "Calibration Horizontal Extent (deg)": 9.0,
+      "Calibration Vertical Extent (deg)": 5.0,
+      "Fixation Point Radius (deg)": 0.05,
+      "Fix Window Radius (deg)": 4.0,
+      "Fixation Duration (ms)": 500,
+      "Maximum Wait per Point (s)": 5.0,
+      "ITI (s)": 1.5,
+      "Reward Duration (ms)": 300,
+      "Background Gray Level (0-182)": 5,
+      "Viewing Distance (cm)": 60.0,
+      "Subject Monitor Width (cm)": 54.0,
+      "Subject Monitor Height (cm)": 30.0,
+      "Subject Screen Index": 1,
+      "Control Screen Index": 0,
+      "Full Screen": false,
+      "Screen Width (px)": 1920,
+      "Screen Height (px)": 1080,
+      "Control Width (px)": 800,
+      "Control Height (px)": 450,
+      "Sample Rate (Hz)": 1000,
+      "Sample Duration (ms)": 100,
+      "Minimum Samples": 3,
+      "Additional Quadrant Points": false,
+      "Random Seed": 20261020,
+      "Calibration Points": [
+        {
+          "x_deg": -3.0,
+          "y_deg": 6.0,
+          "weight": 2.0
+        },
+        {
+          "x_deg": 15.0,
+          "y_deg": 6.0,
+          "weight": 1.0
+        },
+        {
+          "x_deg": 15.0,
+          "y_deg": -12.0,
+          "weight": 1.0
+        },
+        {
+          "x_deg": -3.0,
+          "y_deg": -12.0,
+          "weight": 1.0
+        },
+        {
+          "x_deg": 6.0,
+          "y_deg": 6.0,
+          "weight": 1.0
+        },
+        {
+          "x_deg": -3.0,
+          "y_deg": -3.0,
+          "weight": 1.0
+        },
+        {
+          "x_deg": 6.0,
+          "y_deg": -3.0,
+          "weight": 1.0
+        },
+        {
+          "x_deg": 15.0,
+          "y_deg": -3.0,
+          "weight": 1.0
+        },
+        {
+          "x_deg": 6.0,
+          "y_deg": -12.0,
+          "weight": 1.0
+        },
+        {
+          "x_deg": -3.0,
+          "y_deg": 6.0,
+          "weight": 2.0
+        }
+      ]
+    }
+  }
+}

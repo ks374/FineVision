@@ -10,6 +10,22 @@ hold, reward, H/V override, cue-retention, pre-choice guidance, fixed 2-second
 post-trial feedback, EyeLink integration, and total/latest-40 choice statistics
 from the dot-pair task.
 
+In the standard mode (`Use Visual Cue as Fixation Point` unchecked), the animal
+first acquires and holds the fixation point. On one display refresh the fixation
+point disappears and the bar cue appears, then the bar remains visible for
+`Stim Duration (ms)` without a fixation-hold requirement before choice onset.
+The checkbox is retained as an explicit alternative mode in which the bar itself
+is the fixation target and there is no separate cue phase.
+
+`Gaze-Contingent Stimulus Position` applies the same optional per-frame gaze
+compensation as the dot-pair task. The displayed bar center is
+`configured bar center + current gaze position - fixation position`, so gaze
+and bar move in the same direction. The position is not clamped; an off-screen
+bar is simply not visible. Choice targets do not move. Invalid gaze falls back
+to the configured position;
+unchecking the option preserves the original fixed-position behavior. The
+compensation is disabled when the bar itself is used as the fixation point.
+
 ## Stages
 
 - Stage 1: no cue; only the correct single-dot target appears.
@@ -32,7 +48,26 @@ guidance. `Keep Cue Visible During Choice` behaves exactly as in the dot-pair
 task. The fixed 2-second post-trial display replays the animal's selected bar or
 dot with the cue. A correct selection receives yellow cue/choice frames and a
 connection; an incorrect selection is shown with the cue and selected target
-only, without yellow markings.
+only, without yellow markings. On correct trials, the first post-trial frame is
+flipped to the subject display before the success marker, water command, and
+reward sound are triggered.
+
+The Bar task also shares the adaptive pre-choice reminder parameters. After
+`Reminder After Consecutive Errors (X)` incorrect choices, the next trial shows
+the yellow cue frame and line. `Reminder After Trials (Y)` schedules the next
+`Reminder Trials (Z)` trials with the same guidance. These schedules are
+independent; X=0 disables the error schedule, while Y=0 or Z=0 disables the
+interval schedule. Reward feedback is the shared rapid six-beep WAV, lasting
+0.6 seconds.
+
+The Bar task also inherits block scheduling and failure repeats. The startup
+parameter `Trials per Block (N)` defaults to 40 and is disabled in the runtime
+menu after the task starts. Only a `Success` completes the current within-block
+trial. Every non-`Success` attempt repeats the same horizontal or vertical
+stimulus without advancing the block. The Nth success ends the block and
+triggers the independent `Block Reward Length (s)` reward (1.5 seconds by
+default). Returning from an `N`-key pause gives one normal-length reward;
+`Cancel` discards menu edits and resumes rather than terminating the session.
 
 ## Starting the task
 

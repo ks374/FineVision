@@ -45,12 +45,14 @@ class GazeTrackerRenderer:
             1 if getattr(shared_data, "mode", None) == "eyelink" else 5
         )
         self.smooth_buffer = deque(maxlen=smooth_samples)
+        self._last_gaze = {"x": 0.0, "y": 0.0, "valid": False}
 
     def reset_trail(self):
         self.trail.clear()
         self.smooth_buffer.clear()
 
-    def update_and_draw(self):
+    def update(self):
+        """Read one gaze sample and update the operator-view trail."""
         if self.is_simulating:
             mouse_x, mouse_y = self.mouse.getPos()
             gaze = {
@@ -73,9 +75,19 @@ class GazeTrackerRenderer:
 
         if gaze["valid"]:
             self.trail.append((mouse_x, mouse_y))
+            self.cursor.pos = (mouse_x, mouse_y)
+        self._last_gaze = gaze
+        return gaze
+
+    def draw(self):
+        """Draw the most recently sampled gaze on the operator window."""
+        if self._last_gaze["valid"]:
             if len(self.trail) >= 2:
                 self.tail_line.vertices = list(self.trail)
                 self.tail_line.draw()
-            self.cursor.pos = (mouse_x, mouse_y)
             self.cursor.draw()
+
+    def update_and_draw(self):
+        gaze = self.update()
+        self.draw()
         return gaze

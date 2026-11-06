@@ -1,0 +1,462 @@
+[
+  {
+    "tracker_time_ms": "1033411333",
+    "message": "DISPLAY_COORDS 0 0 1919 1079"
+  },
+  {
+    "tracker_time_ms": "1033411369",
+    "message": "NATIVE_CAL_SESSION_START SESSION Monkey_I18_20261021_104318_620401 TYPE HV9 GRAY_LEVEL 5 BACKGROUND_RGB 40_40_40"
+  },
+  {
+    "tracker_time_ms": "1033418190",
+    "message": "NATIVE_CAL_TARGET_ON PHASE SETUP INDEX 1 X 959 Y 539"
+  },
+  {
+    "tracker_time_ms": "1033420004",
+    "message": "NATIVE_CAL_TARGET_OFF PHASE SETUP INDEX 1 X 959 Y 539"
+  },
+  {
+    "tracker_time_ms": "1033420708",
+    "message": "NATIVE_REWARD REASON target_advanced DURATION_MS 500 TARGET_X 959 TARGET_Y 539"
+  },
+  {
+    "tracker_time_ms": "1033420714",
+    "message": "NATIVE_CAL_TARGET_ON PHASE SETUP INDEX 2 X 1420 Y 1005"
+  },
+  {
+    "tracker_time_ms": "1033421804",
+    "message": "NATIVE_CAL_TARGET_OFF PHASE SETUP INDEX 2 X 1420 Y 1005"
+  },
+  {
+    "tracker_time_ms": "1033422496",
+    "message": "NATIVE_REWARD REASON target_advanced DURATION_MS 500 TARGET_X 1420 TARGET_Y 1005"
+  },
+  {
+    "tracker_time_ms": "1033422504",
+    "message": "NATIVE_CAL_TARGET_ON PHASE SETUP INDEX 3 X 959 Y 73"
+  },
+  {
+    "tracker_time_ms": "1033423432",
+    "message": "NATIVE_CAL_TARGET_OFF PHASE SETUP INDEX 3 X 959 Y 73"
+  },
+  {
+    "tracker_time_ms": "1033424141",
+    "message": "NATIVE_REWARD REASON target_advanced DURATION_MS 500 TARGET_X 959 TARGET_Y 73"
+  },
+  {
+    "tracker_time_ms": "1033424147",
+    "message": "NATIVE_CAL_TARGET_ON PHASE SETUP INDEX 4 X 1420 Y 539"
+  },
+  {
+    "tracker_time_ms": "1033425004",
+    "message": "NATIVE_CAL_TARGET_OFF PHASE SETUP INDEX 4 X 1420 Y 539"
+  },
+  {
+    "tracker_time_ms": "1033425694",
+    "message": "NATIVE_REWARD REASON target_advanced DURATION_MS 500 TARGET_X 1420 TARGET_Y 539"
+  },
+  {
+    "tracker_time_ms": "1033425700",
+    "message": "NATIVE_CAL_TARGET_ON PHASE SETUP INDEX 5 X 498 Y 539"
+  },
+  {
+    "tracker_time_ms": "1033426672",
+    "message": "NATIVE_CAL_TARGET_OFF PHASE SETUP INDEX 5 X 498 Y 539"
+  },
+  {
+    "tracker_time_ms": "1033427365",
+    "message": "NATIVE_REWARD REASON target_advanced DURATION_MS 500 TARGET_X 498 TARGET_Y 539"
+  },
+  {
+    "tracker_time_ms": "1033427372",
+    "message": "NATIVE_CAL_TARGET_ON PHASE SETUP INDEX 6 X 959 Y 1005"
+  },
+  {
+    "tracker_time_ms": "1033428265",
+    "message": "NATIVE_CAL_TARGET_OFF PHASE SETUP INDEX 6 X 959 Y 1005"
+  },
+  {
+    "tracker_time_ms": "1033428970",
+    "message": "NATIVE_REWARD REASON target_advanced DURATION_MS 500 TARGET_X 959 TARGET_Y 1005"
+  },
+  {
+    "tracker_time_ms": "1033428975",
+    "message": "NATIVE_CAL_TARGET_ON PHASE SETUP INDEX 7 X 1420 Y 73"
+  },
+  {
+    "tracker_time_ms": "1033429843",
+    "message": "NATIVE_CAL_TARGET_OFF PHASE SETUP INDEX 7 X 1420 Y 73"
+  },
+  {
+    "tracker_time_ms": "1033430552",
+    "message": "NATIVE_REWARD REASON target_advanced DURATION_MS 500 TARGET_X 1420 TARGET_Y 73"
+  },
+  {
+    "tracker_time_ms": "1033430557",
+    "message": "NATIVE_CAL_TARGET_ON PHASE SETUP INDEX 8 X 498 Y 73"
+  },
+  {
+    "tracker_time_ms": "1033431461",
+    "message": "NATIVE_CAL_TARGET_OFF PHASE SETUP INDEX 8 X 498 Y 73"
+  },
+  {
+    "tracker_time_ms": "1033432169",
+    "message": "NATIVE_REWARD REASON target_advanced DURATION_MS 500 TARGET_X 498 TARGET_Y 73"
+  },
+  {
+    "tracker_time_ms": "1033432175",
+    "message": "NATIVE_CAL_TARGET_ON PHASE SETUP INDEX 9 X 498 Y 1005"
+  },
+  {
+    "tracker_time_ms": "1033433018",
+    "message": "NATIVE_CAL_TARGET_OFF PHASE SETUP INDEX 9 X 498 Y 1005"
+  },
+  {
+    "tracker_time_ms": "1033433723",
+    "message": "NATIVE_REWARD REASON target_advanced DURATION_MS 500 TARGET_X 498 TARGET_Y 1005"
+  },
+  {
+    "tracker_time_ms": "1033433729",
+    "message": "NATIVE_CAL_TARGET_ON PHASE SETUP INDEX 10 X 959 Y 539"
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL "
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": ">>>>>>> CALIBRATION (HV9,P-CR) FOR RIGHT: <<<<<<<<<"
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL Calibration points:  "
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL -39.5, -48.5        -0,    177   "
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL -40.2, -62.1        -0,   2280   "
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL -39.2, -36.2        -0,  -1862   "
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL -54.4, -49.1      2046,    177   "
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL -25.2, -47.7     -2046,    177   "
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL -54.2, -61.4      2078,   2280   "
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL -24.3, -60.8     -2078,   2280   "
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL -53.6, -36.1      2014,  -1862   "
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL -25.3, -35.4     -2014,  -1862   "
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL  0.0,  0.0         0,      0   "
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL eye check box: (L,R,T,B)"
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "\t  -60     5   -68     6"
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL href cal range: (L,R,T,B)"
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "\t-3117  3117 -2897  3315"
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL Cal coeff:(X=a+bx+cy+dxx+eyy,Y=f+gx+goaly+ixx+jyy)"
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "     -0 -140.22  5.2003 -0.20252 -0.12711 "
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "   176.64  7.805 -161.03  0.036642 -0.46075"
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL Prenormalize: offx, offy = -39.506 -48.467"
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL Quadrant center: centx, centy = "
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "  -3.5527e-15  176.64"
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL WARNING: diagonals "
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL Corner correction:"
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "  -7.6439e-06,  6.3618e-06 "
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "  -8.1622e-06, -3.0041e-05 "
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "  -3.8642e-05, -1.3318e-05 "
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "   3.9004e-05,  5.3999e-05 "
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL Gains: cx:177.175 lx:163.380 rx:190.527"
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL Gains: cy:211.615 ty:171.089 by:235.688"
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL Resolution (upd) at screen center: X=1.5, Y=1.2"
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL Gain Change Proportion: X: 0.166 Y: 0.378"
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL Gain Ratio (Gy/Gx) = 1.194"
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL PCR gain ratio(x,y) = 2.158, 2.002"
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL CR gain match(x,y) = 1.010, 1.010"
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL Slip rotation correction OFF"
+  },
+  {
+    "tracker_time_ms": "1033434763",
+    "message": "!CAL CALIBRATION HV9 R RIGHT   GOOD "
+  },
+  {
+    "tracker_time_ms": "1033434772",
+    "message": "NATIVE_CAL_TARGET_OFF PHASE SETUP INDEX 10 X 959 Y 539"
+  },
+  {
+    "tracker_time_ms": "1033434772",
+    "message": "NATIVE_CAL_RESULT PHASE SETUP RESULT GOOD"
+  },
+  {
+    "tracker_time_ms": "1033435466",
+    "message": "NATIVE_REWARD REASON calibration_or_validation_complete DURATION_MS 500 TARGET_X 959 TARGET_Y 539"
+  },
+  {
+    "tracker_time_ms": "1033436028",
+    "message": "NATIVE_CAL_RESULT PHASE SETUP RESULT GOOD"
+  },
+  {
+    "tracker_time_ms": "1033436989",
+    "message": "NATIVE_CAL_TARGET_ON PHASE SETUP INDEX 11 X 959 Y 539"
+  },
+  {
+    "tracker_time_ms": "1033438411",
+    "message": "NATIVE_CAL_TARGET_OFF PHASE SETUP INDEX 11 X 959 Y 539"
+  },
+  {
+    "tracker_time_ms": "1033439211",
+    "message": "NATIVE_REWARD REASON target_advanced DURATION_MS 500 TARGET_X 959 TARGET_Y 539"
+  },
+  {
+    "tracker_time_ms": "1033439218",
+    "message": "NATIVE_CAL_TARGET_ON PHASE SETUP INDEX 12 X 554 Y 949"
+  },
+  {
+    "tracker_time_ms": "1033440057",
+    "message": "NATIVE_CAL_TARGET_OFF PHASE SETUP INDEX 12 X 554 Y 949"
+  },
+  {
+    "tracker_time_ms": "1033440851",
+    "message": "NATIVE_REWARD REASON target_advanced DURATION_MS 500 TARGET_X 554 TARGET_Y 949"
+  },
+  {
+    "tracker_time_ms": "1033440857",
+    "message": "NATIVE_CAL_TARGET_ON PHASE SETUP INDEX 13 X 1420 Y 539"
+  },
+  {
+    "tracker_time_ms": "1033441804",
+    "message": "NATIVE_CAL_TARGET_OFF PHASE SETUP INDEX 13 X 1420 Y 539"
+  },
+  {
+    "tracker_time_ms": "1033442584",
+    "message": "NATIVE_REWARD REASON target_advanced DURATION_MS 500 TARGET_X 1420 TARGET_Y 539"
+  },
+  {
+    "tracker_time_ms": "1033442589",
+    "message": "NATIVE_CAL_TARGET_ON PHASE SETUP INDEX 14 X 498 Y 539"
+  },
+  {
+    "tracker_time_ms": "1033443518",
+    "message": "NATIVE_CAL_TARGET_OFF PHASE SETUP INDEX 14 X 498 Y 539"
+  },
+  {
+    "tracker_time_ms": "1033444310",
+    "message": "NATIVE_REWARD REASON target_advanced DURATION_MS 500 TARGET_X 498 TARGET_Y 539"
+  },
+  {
+    "tracker_time_ms": "1033444314",
+    "message": "NATIVE_CAL_TARGET_ON PHASE SETUP INDEX 15 X 959 Y 73"
+  },
+  {
+    "tracker_time_ms": "1033445233",
+    "message": "NATIVE_CAL_TARGET_OFF PHASE SETUP INDEX 15 X 959 Y 73"
+  },
+  {
+    "tracker_time_ms": "1033446028",
+    "message": "NATIVE_REWARD REASON target_advanced DURATION_MS 500 TARGET_X 959 TARGET_Y 73"
+  },
+  {
+    "tracker_time_ms": "1033446036",
+    "message": "NATIVE_CAL_TARGET_ON PHASE SETUP INDEX 16 X 959 Y 1005"
+  },
+  {
+    "tracker_time_ms": "1033446990",
+    "message": "NATIVE_CAL_TARGET_OFF PHASE SETUP INDEX 16 X 959 Y 1005"
+  },
+  {
+    "tracker_time_ms": "1033447785",
+    "message": "NATIVE_REWARD REASON target_advanced DURATION_MS 500 TARGET_X 959 TARGET_Y 1005"
+  },
+  {
+    "tracker_time_ms": "1033447793",
+    "message": "NATIVE_CAL_TARGET_ON PHASE SETUP INDEX 17 X 554 Y 129"
+  },
+  {
+    "tracker_time_ms": "1033448847",
+    "message": "NATIVE_CAL_TARGET_OFF PHASE SETUP INDEX 17 X 554 Y 129"
+  },
+  {
+    "tracker_time_ms": "1033449636",
+    "message": "NATIVE_REWARD REASON target_advanced DURATION_MS 500 TARGET_X 554 TARGET_Y 129"
+  },
+  {
+    "tracker_time_ms": "1033449643",
+    "message": "NATIVE_CAL_TARGET_ON PHASE SETUP INDEX 18 X 1364 Y 949"
+  },
+  {
+    "tracker_time_ms": "1033450657",
+    "message": "NATIVE_CAL_TARGET_OFF PHASE SETUP INDEX 18 X 1364 Y 949"
+  },
+  {
+    "tracker_time_ms": "1033451451",
+    "message": "NATIVE_REWARD REASON target_advanced DURATION_MS 500 TARGET_X 1364 TARGET_Y 949"
+  },
+  {
+    "tracker_time_ms": "1033451457",
+    "message": "NATIVE_CAL_TARGET_ON PHASE SETUP INDEX 19 X 1364 Y 129"
+  },
+  {
+    "tracker_time_ms": "1033452379",
+    "message": "NATIVE_CAL_TARGET_OFF PHASE SETUP INDEX 19 X 1364 Y 129"
+  },
+  {
+    "tracker_time_ms": "1033453171",
+    "message": "NATIVE_REWARD REASON target_advanced DURATION_MS 500 TARGET_X 1364 TARGET_Y 129"
+  },
+  {
+    "tracker_time_ms": "1033453179",
+    "message": "NATIVE_CAL_TARGET_ON PHASE SETUP INDEX 20 X 959 Y 539"
+  },
+  {
+    "tracker_time_ms": "1033454047",
+    "message": "!CAL VALIDATION HV9 R RIGHT GOOD ERROR 0.19 avg. 0.52 max  OFFSET 0.10 deg. 4.6,-3.6 pix."
+  },
+  {
+    "tracker_time_ms": "1033454047",
+    "message": "VALIDATE R 4POINT 0 RIGHT  at 960,540  OFFSET 0.07 deg.  -1.1,-4.1 pix."
+  },
+  {
+    "tracker_time_ms": "1033454047",
+    "message": "VALIDATE R 4POINT 1 RIGHT  at 960,74  OFFSET 0.34 deg.  18.8,8.3 pix."
+  },
+  {
+    "tracker_time_ms": "1033454047",
+    "message": "VALIDATE R 4POINT 2 RIGHT  at 960,1005  OFFSET 0.09 deg.  5.1,2.0 pix."
+  },
+  {
+    "tracker_time_ms": "1033454047",
+    "message": "VALIDATE R 4POINT 3 RIGHT  at 499,540  OFFSET 0.15 deg.  0.7,9.1 pix."
+  },
+  {
+    "tracker_time_ms": "1033454047",
+    "message": "VALIDATE R 4POINT 4 RIGHT  at 1420,540  OFFSET 0.17 deg.  2.1,-9.6 pix."
+  },
+  {
+    "tracker_time_ms": "1033454047",
+    "message": "VALIDATE R 4POINT 5 RIGHT  at 554,130  OFFSET 0.52 deg.  14.4,-27.2 pix."
+  },
+  {
+    "tracker_time_ms": "1033454047",
+    "message": "VALIDATE R 4POINT 6 RIGHT  at 1365,130  OFFSET 0.08 deg.  -3.7,-3.0 pix."
+  },
+  {
+    "tracker_time_ms": "1033454047",
+    "message": "VALIDATE R 4POINT 7 RIGHT  at 554,949  OFFSET 0.21 deg.  2.0,-12.6 pix."
+  },
+  {
+    "tracker_time_ms": "1033454047",
+    "message": "VALIDATE R 4POINT 8 RIGHT  at 1365,949  OFFSET 0.36 deg.  11.2,-18.6 pix."
+  },
+  {
+    "tracker_time_ms": "1033454054",
+    "message": "NATIVE_CAL_TARGET_OFF PHASE SETUP INDEX 20 X 959 Y 539"
+  },
+  {
+    "tracker_time_ms": "1033454064",
+    "message": "NATIVE_CAL_RESULT PHASE SETUP RESULT GOOD"
+  },
+  {
+    "tracker_time_ms": "1033454759",
+    "message": "NATIVE_REWARD REASON calibration_or_validation_complete DURATION_MS 500 TARGET_X 959 TARGET_Y 539"
+  },
+  {
+    "tracker_time_ms": "1033455639",
+    "message": "NATIVE_CAL_RESULT PHASE SETUP RESULT GOOD"
+  },
+  {
+    "tracker_time_ms": "1033458966",
+    "message": "NATIVE_CAL_SESSION_END STATUS COMPLETED"
+  }
+]

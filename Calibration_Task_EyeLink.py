@@ -1,7 +1,6 @@
-"""Run FineVision's custom EyeLink calibration/report task.
+"""Record RAW calibration and save the fitted mapping plus EDF session archive.
 
-In the default GAZE workflow the fitted coefficients are saved only in the
-session report and are not applied online. Switch to HREF to use this mapping.
+Uses a session-specific RAW configuration; task GAZE settings stay unchanged.
 """
 
 from Calibration_Task import main

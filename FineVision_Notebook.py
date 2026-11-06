@@ -37,7 +37,10 @@ class _ScrollableParameterDialog:
         runtime_actions=False,
         allow_recalibration=False,
         notice=None,
+        idle_callback=None,
     ):
+        self.idle_callback = idle_callback
+        self.idle_error = None
         self.parameters = parameters
         self.parameter_validator = parameter_validator
         self.disabled_parameters = set(disabled_parameters or ())
@@ -401,6 +404,15 @@ class _ScrollableParameterDialog:
         self.root.unbind_all("<Button-5>")
         self.root.destroy()
 
+    def _service_idle(self):
+        try:
+            self.idle_callback()
+        except Exception as exc:
+            self.idle_error = exc
+            self._cancel()
+            return
+        self.root.after(10, self._service_idle)
+
     def show(self):
         self.root.lift()
         self.root.focus_force()
@@ -414,7 +426,11 @@ class _ScrollableParameterDialog:
         )
         if first_widget is not None:
             first_widget.focus_set()
+        if self.idle_callback is not None:
+            self.root.after(0, self._service_idle)
         self.root.mainloop()
+        if self.idle_error is not None:
+            raise self.idle_error
         return self.result
 
 class FineVision_Notebook:
@@ -503,6 +519,8 @@ class FineVision_Notebook:
     ):
         """Show a scrollable editor and save the confirmed parameters."""
         print(f"Waiting for {self.task_name} task parameters...")
+        if getattr(self, "session_subject_id", None) is not None:
+            disabled_parameters = set(disabled_parameters or ()) | {"Subject ID"}
 
         dialog = _ScrollableParameterDialog(
             parameters=self.exp_params,
@@ -536,6 +554,7 @@ class FineVision_Notebook:
         title=None,
         allow_recalibration=False,
         notice=None,
+        idle_callback=None,
     ):
         """Edit live parameters and return confirm/recalibrate/cancel.
 
@@ -543,6 +562,8 @@ class FineVision_Notebook:
         ``core.quit``.  The running task decides how to end its session.
         """
         print(f"Waiting for {self.task_name} runtime parameters...")
+        if getattr(self, "session_subject_id", None) is not None:
+            disabled_parameters = set(disabled_parameters or ()) | {"Subject ID"}
         dialog = _ScrollableParameterDialog(
             parameters=self.exp_params,
             title=title or f"Runtime Parameters ({self.task_name})",
@@ -557,6 +578,7 @@ class FineVision_Notebook:
             runtime_actions=True,
             allow_recalibration=bool(allow_recalibration),
             notice=notice,
+            idle_callback=idle_callback,
         )
         updated_params = dialog.show()
         if updated_params is None:

@@ -1,360 +1,323 @@
+"""Classic fixation with session records and frame-counted photodiode codes."""
+import csv
+import json
 import math
 import os
-from datetime import datetime
-from psychopy import visual, core, event, gui
-from multiprocessing import Process
-from collections import deque
+import time
 import traceback
-import pandas as pd
+from datetime import datetime, timezone
 
-# 确保这些自定义模块在你的同一目录下
+from psychopy import visual, event
 from eyetracker import create_tracker_runtime
-from Json_manager import update_json, read_json
 from FineVision_Notebook import FineVision_Notebook
 from GazeTrackerRenderer import GazeTrackerRenderer
 from FineVision_Util import ArduinoController
+from SessionNaming import subject_filename, confirm_session_parameters
+from FramePulse import DisplaySync
 
-# ==========================================
-# 2. 核心任务类 (FixationTask)
-# ==========================================
+TIME_FIELDS = ["Time_TrialStart", "Time_DrawFinish", "Time_GazeEnter",
+               "Time_FixAcquired", "Time_Break", "Time_NoFix", "Time_Success",
+               "Time_FixOff", "Time_OutcomePDOn", "Time_OutcomePDOff", "Time_PDOn", "Time_PDOff", "Time_End"]
+FIELDS = ["Trial", "Subject_ID", "Status", *TIME_FIELDS,
+          "Session_T0_PerfCounter", "Session_T0_UTC", "Parameters_JSON"]
+
+
+def create_session_dir(root, subject):
+    suffix = f"{subject_filename(subject)}_{datetime.now():%Y%m%d_%H%M%S}"
+    base = os.path.join(root, "experiment_logs", f"Fixation_{suffix}")
+    index = 0
+    while True:
+        extra = f"_{index:03d}" if index else ""
+        folder = base + extra
+        try:
+            os.makedirs(folder)
+            return suffix + extra, folder
+        except FileExistsError:
+            index += 1
+
+
 class FixationTask:
-    def __init__(self, win_sub, win_ctl, shared_data, task_manager,is_simulating):
-        self.win_sub = win_sub
-        self.win_ctl = win_ctl
-        self.shared_data = shared_data
-        self.task_manager = task_manager
-        self.is_simulating = is_simulating
-
+    def __init__(self, win_sub, win_ctl, shared_data, task_manager, is_simulating,
+                 save_dir, session_id, session_t0, session_utc):
+        self.win_sub, self.win_ctl = win_sub, win_ctl
+        self.shared_data, self.task_manager = shared_data, task_manager
+        self.session_t0, self.session_utc = session_t0, session_utc
+        self.save_dir = save_dir
+        self.subject_id = str(task_manager.exp_params["Subject ID"])
         self.arduino = ArduinoController()
-        
-        # 计算双屏缩放比例
-        self.scale_x = win_ctl.size[0] / win_sub.size[0]
-        self.scale_y = win_ctl.size[1] / win_sub.size[1]
+        sx, sy = win_ctl.size[0] / win_sub.size[0], win_ctl.size[1] / win_sub.size[1]
+        self.scale_x = sx
+        self.gaze_renderer = GazeTrackerRenderer(win_ctl, shared_data, sx, sy, is_simulating)
+        self.stim_fix_point = visual.Circle(win_sub, radius=15, fillColor="white", lineColor="white", pos=(0, 0))
+        self.ctl_fix_point = visual.Circle(win_ctl, radius=15 * sx, fillColor="green", pos=(0, 0))
+        self.ctl_fix_window = visual.Circle(win_ctl, radius=100, fillColor=None, lineColor="red", pos=(0, 0))
+        self.pd = visual.Rect(win_sub, width=80, height=80, units="pix",
+                              pos=(win_sub.size[0] / 2 - 50, -win_sub.size[1] / 2 + 50),
+                              fillColor="black", lineColor="black", autoLog=False)
+        self.pulse = DisplaySync()
+        self.behavior_log, self.events, self.frames = [], [], []
+        self.current = None
+        self.pause_requested = self.quit_requested = False
+        self.previous_flip = None
+        self.frame_index = 0
+        self.nominal_period = float(win_sub.monitorFramePeriod)
+        self.update_params()
+        self.csv_file = open(os.path.join(save_dir, f"Fixation_task_log_{session_id}.csv"), "w", newline="", encoding="utf-8-sig")
+        self.writer = csv.DictWriter(self.csv_file, fieldnames=FIELDS)
+        self.writer.writeheader()
+        self.csv_file.flush()
 
-        self.gaze_renderer = GazeTrackerRenderer(self.win_ctl,self.shared_data,self.scale_x,self.scale_y,self.is_simulating)
+    def now(self):
+        return time.perf_counter() - self.session_t0
 
-        # --- 视觉刺激初始化 ---
-        # 猴子屏幕：中心注视点
-        self.stim_fix_point = visual.Circle(win_sub, radius=15, fillColor='white', lineColor='white', pos=(0,0))
-        
-        # 控制台屏幕：包含注视点、实时眼动光标、隐形的“注视窗口”边界
-        self.ctl_fix_point = visual.Circle(win_ctl, radius=15 * self.scale_x, fillColor='green', pos=(0,0))
-        self.ctl_gaze_cursor = visual.Circle(win_ctl, radius=6, fillColor='yellow', opacity=0.8)
-        self.ctl_fix_window = visual.Circle(win_ctl, radius=100, fillColor=None, lineColor='red', lineWidth=2, pos=(0,0))
-
-        #self.tail_line = visual.ShapeStim(
-        #    self.win_ctl,
-        #    vertices=[(0,0),(0,0)],
-        #    closeShape=False,
-        #    lineWidth=2.0,
-        #    lineColor='yellow',
-        #    opacity=0.6
-        #)
-        self.trial_clock = core.Clock()
-
-        self.behavior_log = []
-        self.session_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+    def send(self, label, at=None, **details):
+        at = self.now() if at is None else at
+        trial = self.current["Trial"] if self.current else 0
+        self.events.append({"event": label, "time": at, "trial": trial, **details})
+        if hasattr(self.shared_data, "send_event"):
+            self.shared_data.send_event(f"{label} TRIAL {trial} SESSION_TIME {at:.9f}")
 
     def update_params(self):
-        """从参数管理器中拉取最新的参数并更新类的属性"""
         p = self.task_manager.exp_params
-        self.wait_time = p.get('Wait Time (s)', 2.0)
-        self.stim_duration = p.get('Stim Duration (s)', 1.0)
-        self.reward_len = p.get('Reward Length (s)', 0.2)
-        self.iti_time = p.get('ITI (s)', 1.0)
-        self.timeout_time = p.get('Timeout (s)', 2.0)
-        self.fix_radius = p.get('Fix Window Radius (pix)', 100)
-        
-        # 同步更新控制台的绿色判定圈大小
+        self.wait_time = float(p.get("Wait Time (s)", 2))
+        self.stim_duration = float(p.get("Stim Duration (s)", 1))
+        self.reward_len = float(p.get("Reward Length (s)", .2))
+        self.iti_time = float(p.get("ITI (s)", 1))
+        self.timeout_time = float(p.get("Timeout (s)", 2))
+        self.fix_radius = float(p.get("Fix Window Radius (pix)", 100))
+        values = (self.wait_time, self.stim_duration, self.reward_len,
+                  self.iti_time, self.timeout_time, self.fix_radius)
+        if any(not math.isfinite(v) or v < 0 for v in values):
+            raise ValueError("Fixation parameters must be finite and nonnegative")
         self.ctl_fix_window.radius = self.fix_radius * self.scale_x
 
-    def is_gaze_in_window(self, gaze_x, gaze_y):
-        """判定视线是否在注视窗内 (计算距中心 0,0 的欧氏距离)"""
-        dist = math.hypot(gaze_x - 0, gaze_y - 0)
-        return dist <= self.fix_radius
+    def _flip_mark(self, fix_on, fix_off, edge, label):
+        # One timestamp for simultaneous fixation and photodiode transitions.
+        at = self.now()
+        self.last_flip_session_time = at
+        if fix_on:
+            self.current["Time_TrialStart"] = self.current["Time_DrawFinish"] = at
+            self.send("FIX_ON", at)
+        if fix_off:
+            self.current["Time_FixOff"] = at
+            self.send("FIX_OFF", at)
+        if edge:
+            self.send(f"PD_{label}_{edge}", at)
+            if self.current and label == "FIXATION":
+                self.current["Time_PDOn" if edge == "ON" else "Time_PDOff"] = at
+
+    def frame(self, fixation=False, fix_on=False, fix_off=False, poll_gaze=True):
+        # Trial loops inspect every sample they poll; do not consume and ignore
+        # an extra sample during drawing (it could contain a brief break).
+        gaze = self.gaze_renderer.update() if poll_gaze else None
+        if fixation:
+            self.stim_fix_point.draw()
+            self.ctl_fix_point.draw()
+            self.ctl_fix_window.draw()
+        self.gaze_renderer.draw()
+        white, edge, label = self.pulse.next_frame(fixation, "FIXATION")
+        self.pd.fillColor = self.pd.lineColor = "white" if white else "black"
+        self.pd.draw()
+        self.win_sub.callOnFlip(self._flip_mark, fix_on, fix_off, edge, label)
+        flip_time = self.win_sub.flip()
+        interval = None if self.previous_flip is None else flip_time - self.previous_flip
+        self.frames.append({"frame": self.frame_index, "flip_clock_time": flip_time,
+                            "session_time": self.last_flip_session_time,
+                            "interval_s": interval, "pd_white": white,
+                            "pd_code": label, "trial": self.current["Trial"] if self.current else 0,
+                            "late": interval is not None and interval > 1.5 * self.nominal_period})
+        self.previous_flip = flip_time
+        self.frame_index += 1
+        self.win_ctl.flip()
+        keys = event.getKeys()
+        self.quit_requested |= "escape" in keys
+        self.pause_requested |= "n" in keys
+        return gaze
+
+    def wait(self, duration, fixation=False):
+        start = self.now()
+        while self.now() - start < duration or self.pulse.busy:
+            self.frame(fixation=fixation)
+            # Finish an already-started optical code before quitting.
+            if self.quit_requested and not self.pulse.busy:
+                return False
+        return not self.quit_requested
+
+    def inside(self, gaze):
+        return gaze["valid"] and math.hypot(gaze["x"], gaze["y"]) <= self.fix_radius
+
+    def save_trial(self):
+        if self.current is None:
+            return
+        self.behavior_log.append(self.current.copy())
+        self.writer.writerow(self.current)
+        self.csv_file.flush()
+        self.current = None
+
+    def run_trial(self, number):
+        params = dict(self.task_manager.exp_params)
+        params.update({"Fixation Acquire (s)": .150, "Fixation Point Radius (pix)": 15,
+                       "Photodiode Size (pix)": 80, "Photodiode Inset (pix)": 10,
+                       "Photodiode Protocol": DisplaySync.SPEC})
+        self.current = {"Trial": number, "Subject_ID": self.subject_id, "Status": "Aborted",
+                        **dict.fromkeys(TIME_FIELDS), "Session_T0_PerfCounter": self.session_t0,
+                        "Session_T0_UTC": self.session_utc,
+                        "Parameters_JSON": json.dumps(params, ensure_ascii=False)}
+        self.send("TRIALID " + str(number))
+        self.arduino.trial_start()
+        self.ctl_fix_window.lineColor = "red"
+        self.frame(fixation=True, fix_on=True)
+        candidate = None
+        status = "NoFix"
+        while not self.quit_requested and self.now() - self.current["Time_DrawFinish"] < self.wait_time:
+            gaze = self.gaze_renderer.update()
+            detected = self.now()
+            if self.inside(gaze):
+                if candidate is None:
+                    candidate = detected
+                if detected - candidate >= .150:
+                    self.current["Time_GazeEnter"] = candidate
+                    self.current["Time_FixAcquired"] = detected
+                    self.send("FIX_ACQUIRED", detected)
+                    status = "Success"
+                    break
+            else:
+                candidate = None
+            self.frame(fixation=True, poll_gaze=False)
+        if status == "Success":
+            self.ctl_fix_window.lineColor = "green"
+            while not self.quit_requested and self.now() - self.current["Time_FixAcquired"] < self.stim_duration:
+                gaze = self.gaze_renderer.update()
+                detected = self.now()
+                if not self.inside(gaze):
+                    status = "Break"
+                    self.current["Time_Break"] = detected
+                    self.send("BREAK", detected)
+                    break
+                self.frame(fixation=True, poll_gaze=False)
+        if self.quit_requested:
+            self.abort_trial()
+            return
+        at = self.now()
+        if status == "NoFix":
+            self.current["Time_NoFix"] = at
+            self.send("NOFIX", at)
+        elif status == "Success":
+            self.current["Time_Success"] = at
+        self.current["Status"] = status
+        self.current["Time_End"] = self.current["Time_Break"] if status == "Break" else at
+        self.send("TRIAL_RESULT " + status, self.current["Time_End"])
+        if status == "Success":
+            self.arduino.trial_success()
+            self.arduino.reward(int(self.reward_len * 1000))
+        elif status == "Break":
+            self.arduino.trial_break()
+        else:
+            self.arduino.trial_nofix()
+        self.frame(fix_off=True)
+        self.wait(self.timeout_time if status == "Break" else 0)
+        self.save_trial()
+        print(f"Trial {number}: {status}")
+
+    def abort_trial(self):
+        self.current["Status"] = "Aborted"
+        self.current["Time_End"] = self.now()
+        self.send("TRIAL_ABORT", self.current["Time_End"])
+        self.frame(fix_off=True)
+        self.wait(0)
+        self.save_trial()
 
     def run_task(self):
-        """任务主循环：处理所有的 Trial 和状态机"""
-        # 初始调用弹窗
-        self.task_manager.prompt_for_parameters()
-        self.update_params()
-        
-        print("\n=== Fixation Task 开始执行 ===")
-        print("按 'Esc' 退出，按 'N' 在 Trial 结束后修改参数。")
-        
-        trial_count = 1
-        success_count = 0
-        pause_requested = False
-
-        while True:
-            # ====================================================
-            # 阶段 A：ITI 与 参数修改安全区
-            # ====================================================
-            if pause_requested:
-                print("\n[实验暂停] 正在呼出参数修改面板...")
-                # 视觉保护：给猴子黑屏
-                self.win_sub.color = "black"
-                self.win_sub.flip()
-                
-                # 阻塞呼出参数修改窗口
-                self.task_manager.prompt_for_parameters()
+        # Establish a physically dark baseline before the one-frame start code.
+        for _ in range(5):
+            self.frame()
+            if self.quit_requested:
+                return
+        self.pulse.start("TASK_START")
+        self.wait(0)
+        number = 1
+        while not self.quit_requested:
+            if self.pause_requested:
+                self.task_manager.prompt_for_runtime_parameters()
                 self.update_params()
-                print(f"✅ 参数已更新！")
-                
-                # 极度重要：清空按键缓存！防止打字内容渗入下一循环
                 event.clearEvents()
-                
-                self.win_sub.color = "black"
-                self.win_sub.flip()
-                pause_requested = False 
-            else:
-                # 正常 ITI 维持黑屏
-                self.win_sub.color = 'black'
-                self.win_ctl.color = 'black'
-                self.win_sub.flip()
-                self.win_ctl.flip()
+                self.pause_requested = False
+                self.previous_flip = None
+            if not self.wait(self.iti_time):
+                break
+            if self.pause_requested:
+                continue
+            self.run_trial(number)
+            number += 1
 
-            self.trial_clock.reset()
-            while self.trial_clock.getTime() < self.iti_time:
-                self.gaze_renderer.update_and_draw()
-
-                self.win_sub.flip()
-                self.win_ctl.flip()
-
-                keys = event.getKeys()
-                if 'escape' in keys: return
-                if 'n' in keys:
-                    pause_requested = True
-                    break
-
-            # ====================================================
-            # 阶段 B：Wait for Fixation (等待猴子看过来)
-            # ====================================================
-            print(f"\n--- Trial {trial_count} 开始 ---")
-            self.arduino.trial_start()
-            if hasattr(self.shared_data, "send_event"):
-                self.shared_data.send_event(f"TRIALID {trial_count}")
-                self.win_sub.callOnFlip(
-                    self.shared_data.send_event,
-                    f"FIX_ON TRIAL {trial_count}",
-                )
-            
-            self.ctl_fix_window.linColor = 'red'
-
-            t_trial_start = core.getTime()
-            t_draw_finish = None
-            t_gaze_enter = None
-            first_draw_done = False
-
-            trial_status = "NoFix"
-            self.trial_clock.reset()
-            
-            # 清理上一轮的杂乱按键，确保本轮按键检测干净
-            event.clearEvents()
-            
-            gaze_acquired = False
-            t_gaze_first_enter = None
-            
-            while self.trial_clock.getTime() < self.wait_time:
-                self.stim_fix_point.draw()
-                self.ctl_fix_point.draw()
-                self.ctl_fix_window.draw()
-
-                if not first_draw_done:
-                    t_draw_finish = core.getTime()
-                    first_draw_done = True
-                
-                gaze = self.gaze_renderer.update_and_draw()
-                
-                if gaze['valid'] and self.is_gaze_in_window(gaze['x'], gaze['y']):
-                    if not gaze_acquired:
-                        gaze_acquired = True
-                        t_gaze_first_enter = core.getTime()
-                    else:
-                        current_time = core.getTime()
-                        if (current_time - t_gaze_first_enter) * 1000 >= 150:
-                            trial_status = "Acquired"
-                            t_gaze_enter = t_gaze_first_enter
-                            break
-                else:
-                    gaze_acquired = False
-                    t_gaze_first_enter = None
-                
-                self.win_sub.flip()
-                self.win_ctl.flip()
-                
-                # 在 Wait 期间允许检测按键
-                keys = event.getKeys()
-                if 'escape' in keys: return
-                if 'n' in keys: pause_requested = True
-
-            # ====================================================
-            # 阶段 C：Hold (严格保持期，不允许眨眼或越界)
-            # ====================================================
-            if trial_status == "Acquired":
-                self.trial_clock.reset()
-                
-                self.ctl_fix_window.lineColor = 'green'
-                
-                while self.trial_clock.getTime() < self.stim_duration:
-                    self.stim_fix_point.draw()
-                    self.ctl_fix_point.draw()
-                    self.ctl_fix_window.draw()
-                    
-                    gaze = self.gaze_renderer.update_and_draw()
-                    
-                    # 严苛判定：无效(眨眼)或移出窗口直接 Break
-                    if not gaze['valid'] or not self.is_gaze_in_window(gaze['x'], gaze['y']):
-                        t_break = core.getTime()
-                        fixation_duration_ms = (t_break - t_gaze_enter) * 1000
-                        
-                        if fixation_duration_ms <= 50:
-                            trial_status = "NoFix"
-                        else:
-                            trial_status = "Break"
-                        break
-
-                    self.win_sub.flip()
-                    self.win_ctl.flip()
-                    
-                    # 保持期间同样检测按键
-                    keys = event.getKeys()
-                    if 'escape' in keys: return
-                    if 'n' in keys: pause_requested = True
-
-                if trial_status == "Acquired":
-                    trial_status = "Success"
-
-            # ====================================================
-            # 阶段 D：Outcome (结果与惩罚)
-            # ====================================================
-            if trial_status == "Success":
-                success_count += 1
-                print(f" -> Result: SUCCESS! (给水 {self.reward_len}s)")
-                
-                self.arduino.trial_success()
-                reward_ms = int(self.reward_len * 1000)
-                self.arduino.reward(reward_ms)
-                
-            elif trial_status == "Break":
-                print(f" -> Result: BREAK! (执行 Timeout 惩罚 {self.timeout_time}s)")
-                self.win_sub.color = 'black'
-                self.win_ctl.color = 'black'
-                self.win_sub.flip()
-                self.win_ctl.flip()
-                self.win_sub.flip()
-                self.win_ctl.flip()
-                self.arduino.trial_break()
-                core.wait(self.timeout_time)
-                
-            elif trial_status == "NoFix":
-                print(" -> Result: NO FIX (猴子未看屏幕)")
-                self.win_sub.color = 'black'
-                self.win_ctl.color = 'black'
-                self.win_sub.flip()
-                self.win_ctl.flip()
-                self.arduino.trial_nofix()
-            
-            print(f"当前正确率: {success_count}/{trial_count}")
-            
-
-            if hasattr(self.shared_data, "send_event"):
-                self.shared_data.send_event(
-                    f"!V TRIAL_VAR Status {trial_status}"
-                )
-                self.shared_data.send_event(f"TRIAL_RESULT {trial_status}")
-            self.behavior_log.append({
-                "Trial":trial_count,
-                "Status":trial_status,
-                "Time_TrialStart":t_trial_start,
-                "Time_DrawFinish":t_draw_finish,
-                "Time_GazeEnter":t_gaze_enter,
-                "Time_End":core.getTime()
-            })
-
-            trial_count += 1
+    def close(self):
+        try:
+            if self.current is not None:
+                self.current["Status"] = "Error"
+                self.current["Time_End"] = self.now()
+                self.save_trial()
+        finally:
+            self.csv_file.close()
+            try:
+                for name, rows in (("events.json", self.events), ("frames.json", self.frames)):
+                    with open(os.path.join(self.save_dir, name), "w", encoding="utf-8") as stream:
+                        json.dump(rows, stream, ensure_ascii=False, indent=2)
+            finally:
+                self.arduino.close()
 
 
-# ==========================================
-# 3. 主程序入口 (Main)
-# ==========================================
-if __name__ == '__main__':
-    # 1. 启动眼动仪 Server 和共享内
-    tracker_mode = globals().get("TRACKER_MODE_OVERRIDE", "qy")
-    is_simulating = globals().get("IS_SIMULATING_OVERRIDE", 0)
-    tracker_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    tracker_runtime = create_tracker_runtime(
-        tracker_mode,
-        is_simulating=bool(is_simulating),
-        session_id=f"Fixation_{tracker_timestamp}",
-        save_dir=os.path.dirname(os.path.abspath(__file__)),
-        screen_size=(1920, 1080),
-        qy_sample_rate=100,
-    )
-    shared_data = tracker_runtime.gaze_source
-    
-    # 2. 屏幕配置
-    MONITOR_ID_SUBJECT = 1 
-    MONITOR_ID_CONTROL = 0 
-
-    # Log_prep
-    timestamp = datetime.now().strftime("%Y%m%d")
-
-    print("正在初始化双屏幕环境...")
-    win_subject = visual.Window(
-        screen=MONITOR_ID_SUBJECT,
-        size=[1920, 1080], 
-        fullscr=False,      # 实际电生理中如果需要高精时间，建议改为 True
-        waitBlanking=True,
-        color='black',
-        units='pix',
-        allowGUI=False
-    )
-
-    win_control = visual.Window(
-        screen=MONITOR_ID_CONTROL,
-        size=[800, 450],
-        fullscr=False,     
-        waitBlanking=False,  #IMPORTANT: no V-Sync
-        color='black',
-        units='pix',
-        title="Fixation Control View"
-    )
-
-    # 3. 设定 Fixation Task 专属默认参数
-    fixation_defaults = {
-        'Subject ID': 'Monkey_H18',
-        'Wait Time (s)': 10.0,        
-        'Stim Duration (s)': 1.5,        
-        'Fix Window Radius (pix)': 500, 
-        'Reward Length (s)': 0.2,       
-        'ITI (s)': 5.0,                  
-        'Timeout (s)': 2.5               
-    }
-
-    # 4. 实例化参数管理器
-    print("加载参数配置...")
-    task_manager = FineVision_Notebook(task_name="FixationTask", default_params=fixation_defaults)
-
-    # 5. 实例化并运行 Fixation 任务
+def main():
+    defaults = {"Subject ID": "Monkey_H18", "Wait Time (s)": 10.,
+                "Stim Duration (s)": 1.5, "Fix Window Radius (pix)": 500,
+                "Reward Length (s)": .2, "ITI (s)": 5., "Timeout (s)": 2.5}
+    manager = FineVision_Notebook(task_name="FixationTask", default_params=defaults)
+    if not confirm_session_parameters(manager):
+        return
+    session_id, folder = create_session_dir(os.path.dirname(os.path.abspath(__file__)), manager.exp_params["Subject ID"])
+    session_t0 = time.perf_counter()
+    utc = datetime.now(timezone.utc).isoformat()
+    metadata = {"session_id": session_id, "session_t0_perf_counter": session_t0,
+                "session_t0_utc_approx": utc, "time_units": "seconds relative to session_t0_perf_counter",
+                "parameters": dict(manager.exp_params), "photodiode_protocol": DisplaySync.SPEC,
+                "sync_note": "EDF uses tracker time. SESSION_ZERO declares PC origin; CLOCK_SYNC carries PC elapsed time at send. Message receipt includes transport latency."}
+    metadata_path = os.path.join(folder, "session.json")
+    with open(metadata_path, "w", encoding="utf-8") as stream:
+        json.dump(metadata, stream, ensure_ascii=False, indent=2)
+    runtime = subject = control = task = None
     try:
-        fix_task = FixationTask(win_subject, win_control, shared_data, task_manager,is_simulating)
-        while True:
-            fix_task.run_task()
-    except Exception as e:
-        print(f"任务运行中发生错误: {e}")
-        traceback.print_exc()
+        runtime = create_tracker_runtime(globals().get("TRACKER_MODE_OVERRIDE", "eyelink"),
+            is_simulating=bool(globals().get("IS_SIMULATING_OVERRIDE", 0)),
+            session_id=f"Fixation_{session_id}", save_dir=folder, session_t0=session_t0,
+            screen_size=(1920, 1080), qy_sample_rate=100)
+        runtime.send_event(f"SESSION_ZERO PERF_COUNTER {session_t0:.9f} UTC {utc}")
+        runtime.send_event(f"CLOCK_SYNC SESSION_TIME {time.perf_counter() - session_t0:.9f}")
+        subject = visual.Window(screen=1, size=[1920, 1080], fullscr=True,
+                                waitBlanking=True, color="black", units="pix", allowGUI=False)
+        control = visual.Window(screen=0, size=[800, 450], fullscr=False,
+                                waitBlanking=False, color="black", units="pix", title="Fixation Control View")
+        task = FixationTask(subject, control, runtime.gaze_source, manager,
+                            globals().get("IS_SIMULATING_OVERRIDE", 0), folder, session_id, session_t0, utc)
+        metadata["nominal_frame_period_s"] = task.nominal_period
+        task.run_task()
     finally:
-        # 无论正常退出还是报错，必须安全回收资源
-        if hasattr(fix_task,'behavior_log') and len(fix_task.behavior_log) > 0:
-            csv_name = f"Fixation_task_log_{timestamp}.csv"
-            pd.DataFrame(fix_task.behavior_log).to_csv(csv_name,index=False)
-            print(f"Log data saved.")
-        
-        
-        print("正在关闭实验进程...")
-        fix_task.arduino.close()
-        tracker_runtime.close()
-        win_subject.close()
-        win_control.close()
-        core.quit()
+        metadata["session_end_time"] = time.perf_counter() - session_t0
+        try:
+            with open(metadata_path, "w", encoding="utf-8") as stream:
+                json.dump(metadata, stream, ensure_ascii=False, indent=2)
+        finally:
+            for resource in (task, runtime, subject, control):
+                if resource is not None:
+                    try:
+                        if resource is runtime:
+                            try:
+                                runtime.send_event(f"CLOCK_SYNC SESSION_TIME {time.perf_counter() - session_t0:.9f}")
+                            finally:
+                                runtime.close()
+                        else:
+                            resource.close()
+                    except Exception:
+                        traceback.print_exc()
+
+
+if __name__ == "__main__":
+    main()

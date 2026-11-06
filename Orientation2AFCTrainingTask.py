@@ -6,6 +6,7 @@ import random
 import time
 import traceback
 from datetime import datetime
+from SessionNaming import subject_filename, confirm_session_parameters
 from multiprocessing import Queue, Value, freeze_support
 from queue import Full
 
@@ -46,14 +47,19 @@ INCORRECT_CHOICE_HOLD_S = 0.050
 
 
 DEFAULT_PARAMS = {
-    "Subject ID": "Monkey_H18",
+    "Subject ID": "Monkey_I18",
     "Training Stage": STAGE_OPTIONS.copy(),
     "Random Seed": 20260803,
+    "Trials per Block (N)": 40,
     "Show Post-Trial Teaching Feedback": True,
     "Give Feedback First": False,
     "First Feedback Opacity (0-1)": 1.0,
+    "Reminder After Consecutive Errors (X)": 0,
+    "Reminder After Trials (Y)": 0,
+    "Reminder Trials (Z)": 0,
     "Use Visual Cue as Fixation Point": False,
     "Keep Cue Visible During Choice": False,
+    "Gaze-Contingent Stimulus Position": False,
     "Wait Time (s)": 5.0,
     "Fixation Acquire Time (ms)": 150,
     "Fixation Position X (deg)": 0.0,
@@ -86,6 +92,7 @@ DEFAULT_PARAMS = {
     "Subject Monitor Width (cm)": 54.0,
     "Subject Monitor Height (cm)": 30.0,
     "Reward Length (s)": 0.5,
+    "Block Reward Length (s)": 1.5,
     "ITI (s)": 3.0,
     "Timeout (s)": 0.5,
 }
@@ -96,11 +103,16 @@ PARAMETER_GROUPS = {
         "Subject ID",
         "Training Stage",
         "Random Seed",
+        "Trials per Block (N)",
         "Show Post-Trial Teaching Feedback",
         "Give Feedback First",
         "First Feedback Opacity (0-1)",
+        "Reminder After Consecutive Errors (X)",
+        "Reminder After Trials (Y)",
+        "Reminder Trials (Z)",
         "Use Visual Cue as Fixation Point",
         "Keep Cue Visible During Choice",
+        "Gaze-Contingent Stimulus Position",
         "Wait Time (s)",
     ],
     "Fixation": [
@@ -145,6 +157,7 @@ PARAMETER_GROUPS = {
     ],
     "Reward": [
         "Reward Length (s)",
+        "Block Reward Length (s)",
         "ITI (s)",
         "Timeout (s)",
     ],
@@ -165,12 +178,20 @@ TIME_FIELDS = [
     "Time_FeedbackOn",
     "Time_FeedbackOff",
     "Time_Reward",
+    "Time_BlockReward",
     "Time_End",
 ]
 
 
 TRIAL_LOG_FIELDS = [
     "Trial",
+    "Block",
+    "Trial_In_Block",
+    "Trials_Per_Block",
+    "Counts_Toward_Block",
+    "Block_End",
+    "Block_Reward_Length_ms",
+    "Block_Reward_Delivered",
     "Status",
     "Training_Stage",
     "Orientation",
@@ -204,6 +225,7 @@ TRIAL_LOG_FIELDS = [
     "Cue_Dot_Opacity",
     "Cue_As_Fixation_Point",
     "Cue_Visible_During_Choice",
+    "Gaze_Contingent_Stimulus_Position",
     "Background_Gray_Level",
     "Background_Target_Luminance_cd_m2",
     "Background_Color_R",
@@ -227,6 +249,14 @@ TRIAL_LOG_FIELDS = [
     "Wrong_Target_Opacity",
     "Give_Feedback_First",
     "First_Feedback_Opacity",
+    "Reminder_Feedback_Shown",
+    "Reminder_Triggered_By_Errors",
+    "Reminder_Triggered_By_Interval",
+    "Reminder_Consecutive_Error_X",
+    "Reminder_After_Trials_Y",
+    "Reminder_Trials_Z",
+    "Reminder_Error_Streak_Before_Trial",
+    "Reminder_Trials_Since_Batch_Before_Trial",
     "Teaching_Feedback_Enabled",
     "Teaching_Feedback_Shown",
     "Teaching_Feedback_Duration_ms",
@@ -263,6 +293,7 @@ def _validate_common_params(params, cue_opacity_field):
         "Subject Monitor Width (cm)",
         "Subject Monitor Height (cm)",
         "Reward Length (s)",
+        "Block Reward Length (s)",
         "ITI (s)",
     )
     for field in positive_fields:
@@ -299,6 +330,19 @@ def _validate_common_params(params, cue_opacity_field):
         value = float(params[field])
         if not 0 <= value <= 1:
             raise ValueError(f"{field} must be in the range 0-1.")
+
+    trials_per_block = float(params["Trials per Block (N)"])
+    if trials_per_block <= 0 or not trials_per_block.is_integer():
+        raise ValueError("Trials per Block (N) must be a positive integer.")
+
+    for field in (
+        "Reminder After Consecutive Errors (X)",
+        "Reminder After Trials (Y)",
+        "Reminder Trials (Z)",
+    ):
+        value = float(params[field])
+        if value < 0 or not value.is_integer():
+            raise ValueError(f"{field} must be a non-negative integer.")
 
     for field in (
         "Fixation Position X (deg)",
@@ -405,6 +449,11 @@ class Orientation2AFCTrainingTask(SaccadeTask):
     def _tracker_trial_variable_fields(self):
         return (
             "Subject_ID",
+            "Block",
+            "Trial_In_Block",
+            "Trials_Per_Block",
+            "Block_End",
+            "Block_Reward_Length_ms",
             "Training_Stage",
             "Orientation",
             "Orientation_Source",
@@ -432,6 +481,7 @@ class Orientation2AFCTrainingTask(SaccadeTask):
             "Cue_Dot_Opacity",
             "Cue_As_Fixation_Point",
             "Cue_Visible_During_Choice",
+            "Gaze_Contingent_Stimulus_Position",
             "Background_Gray_Level",
             "Background_Target_Luminance_cd_m2",
             "Background_Color_R",
@@ -455,6 +505,14 @@ class Orientation2AFCTrainingTask(SaccadeTask):
             "Wrong_Target_Opacity",
             "Give_Feedback_First",
             "First_Feedback_Opacity",
+            "Reminder_Feedback_Shown",
+            "Reminder_Triggered_By_Errors",
+            "Reminder_Triggered_By_Interval",
+            "Reminder_Consecutive_Error_X",
+            "Reminder_After_Trials_Y",
+            "Reminder_Trials_Z",
+            "Reminder_Error_Streak_Before_Trial",
+            "Reminder_Trials_Since_Batch_Before_Trial",
             "Teaching_Feedback_Enabled",
             "Teaching_Feedback_Duration_ms",
         )
@@ -478,6 +536,90 @@ class Orientation2AFCTrainingTask(SaccadeTask):
                 f"{tracker_event} TRIAL {trial_data['Trial']}"
             )
 
+    def _configure_reminder_schedule(self, error_x, after_y, for_z):
+        """Apply reminder parameters, resetting counters only when they change."""
+        config = (int(error_x), int(after_y), int(for_z))
+        if getattr(self, "_reminder_config", None) == config:
+            return
+
+        self._reminder_config = config
+        (
+            self.reminder_after_consecutive_errors,
+            self.reminder_after_trials,
+            self.reminder_trials,
+        ) = config
+        self._reminder_error_streak = 0
+        self._reminder_error_pending = False
+        self._reminder_trials_since_batch = 0
+        self._reminder_interval_remaining = 0
+        self._reminder_feedback_active = False
+        self._reminder_triggered_by_errors = False
+        self._reminder_triggered_by_interval = False
+
+    def _begin_trial_reminder(self):
+        """Select the independent error- and interval-based reminder sources."""
+        self._reminder_error_streak_before_trial = self._reminder_error_streak
+        self._reminder_trials_since_batch_before_trial = (
+            self._reminder_trials_since_batch
+        )
+
+        error_due = bool(
+            self.reminder_after_consecutive_errors > 0
+            and self._reminder_error_pending
+        )
+        if error_due:
+            self._reminder_error_pending = False
+
+        interval_due = False
+        if self.reminder_after_trials > 0 and self.reminder_trials > 0:
+            if (
+                self._reminder_interval_remaining == 0
+                and self._reminder_trials_since_batch
+                >= self.reminder_after_trials
+            ):
+                self._reminder_interval_remaining = self.reminder_trials
+                self._reminder_trials_since_batch = 0
+            if self._reminder_interval_remaining > 0:
+                interval_due = True
+                self._reminder_interval_remaining -= 1
+
+        self._reminder_triggered_by_errors = error_due
+        self._reminder_triggered_by_interval = interval_due
+        self._reminder_feedback_active = error_due or interval_due
+
+    def _record_trial_for_reminders(self, trial_data):
+        """Update the two reminder counters independently after a trial."""
+        reminder_shown = trial_data.get("Reminder_Feedback_Shown", False)
+        interval_triggered = trial_data.get(
+            "Reminder_Triggered_By_Interval",
+            False,
+        )
+        if interval_triggered and not reminder_shown:
+            # A pre-choice abort must not consume one of the Z visible reminders.
+            self._reminder_interval_remaining += 1
+        elif not interval_triggered:
+            self._reminder_trials_since_batch += 1
+
+        if (
+            trial_data.get("Reminder_Triggered_By_Errors", False)
+            and not reminder_shown
+        ):
+            # Keep the error reminder pending until a choice display is reached.
+            self._reminder_error_pending = True
+
+        choice_correct = trial_data.get("Choice_Correct")
+        if choice_correct is True:
+            self._reminder_error_streak = 0
+        elif choice_correct is False:
+            self._reminder_error_streak += 1
+            if (
+                self.reminder_after_consecutive_errors > 0
+                and self._reminder_error_streak
+                >= self.reminder_after_consecutive_errors
+            ):
+                self._reminder_error_pending = True
+                self._reminder_error_streak = 0
+
     def update_params(self):
         params = self.task_manager.exp_params
         self._validate_current_params(params)
@@ -487,6 +629,16 @@ class Orientation2AFCTrainingTask(SaccadeTask):
         self.stage = stage_number(self.stage_label)
         self.subject_id = str(params["Subject ID"])
         self.random_seed = int(params["Random Seed"])
+        configured_trials_per_block = int(params["Trials per Block (N)"])
+        locked_trials_per_block = getattr(
+            self,
+            "_locked_trials_per_block",
+            None,
+        )
+        if locked_trials_per_block is not None:
+            configured_trials_per_block = int(locked_trials_per_block)
+            params["Trials per Block (N)"] = configured_trials_per_block
+        self.trials_per_block = configured_trials_per_block
         self.show_teaching_feedback = bool(
             params["Show Post-Trial Teaching Feedback"]
         )
@@ -494,11 +646,19 @@ class Orientation2AFCTrainingTask(SaccadeTask):
         self.first_feedback_opacity = float(
             params["First Feedback Opacity (0-1)"]
         )
+        self._configure_reminder_schedule(
+            int(params["Reminder After Consecutive Errors (X)"]),
+            int(params["Reminder After Trials (Y)"]),
+            int(params["Reminder Trials (Z)"]),
+        )
         self.use_visual_cue_as_fixation = bool(
             params["Use Visual Cue as Fixation Point"]
         )
         self.keep_cue_visible_during_choice = bool(
             params["Keep Cue Visible During Choice"]
+        )
+        self.gaze_contingent_stimulus_position = bool(
+            params["Gaze-Contingent Stimulus Position"]
         )
 
         if getattr(self, "_rng_seed", None) != self.random_seed:
@@ -595,6 +755,7 @@ class Orientation2AFCTrainingTask(SaccadeTask):
         self.monitor_width_cm = float(params["Subject Monitor Width (cm)"])
         self.monitor_height_cm = float(params["Subject Monitor Height (cm)"])
         self.reward_len_s = float(params["Reward Length (s)"])
+        self.block_reward_len_s = float(params["Block Reward Length (s)"])
         self.iti_s = float(params["ITI (s)"])
         self.timeout_s = float(params["Timeout (s)"])
 
@@ -803,6 +964,12 @@ class Orientation2AFCTrainingTask(SaccadeTask):
         )
 
     def _next_orientation(self):
+        repeated_orientation = getattr(self, "_repeat_orientation", None)
+        if repeated_orientation in ("Horizontal", "Vertical"):
+            self._repeat_orientation = None
+            self._last_orientation_source = "Repeat_After_Failure"
+            return repeated_orientation
+
         forced_orientation = getattr(self, "_next_orientation_override", None)
         if forced_orientation in ("Horizontal", "Vertical"):
             self._next_orientation_override = None
@@ -814,6 +981,19 @@ class Orientation2AFCTrainingTask(SaccadeTask):
             self.rng.shuffle(self._orientation_bag)
         self._last_orientation_source = "Random"
         return self._orientation_bag.pop()
+
+    def _schedule_repeat_after_failure(self, status, orientation, trial_number):
+        if status == "Success":
+            return
+        self._repeat_orientation = orientation
+        self._send_tracker_event(
+            f"NEXT_STIM_REPEAT {orientation.upper()} "
+            f"AFTER_TRIAL {trial_number} STATUS {status}"
+        )
+        print(
+            f"[Repeat] Trial {trial_number} ended as {status}; "
+            f"next cue repeats {orientation}."
+        )
 
     def _poll_training_commands(self, allow_orientation_override=False):
         keys = event.getKeys()
@@ -950,10 +1130,15 @@ class Orientation2AFCTrainingTask(SaccadeTask):
         opacity,
     ):
         cue_width, cue_height = self._feedback_cue_size_px(orientation)
+        cue_center = getattr(
+            self,
+            "_current_cue_center_px",
+            (self.cue_center_x_px, self.cue_center_y_px),
+        )
         self._set_feedback_box_geometry(
             self.feedback_cue_box_sub,
             self.feedback_cue_box_ctl,
-            (self.cue_center_x_px, self.cue_center_y_px),
+            cue_center,
             (cue_width, cue_height),
             self.scale_x,
             self.scale_y,
@@ -971,7 +1156,6 @@ class Orientation2AFCTrainingTask(SaccadeTask):
             self.scale_y,
         )
 
-        cue_center = (self.cue_center_x_px, self.cue_center_y_px)
         target_center = self.target_positions_px[correct_target]
         line_start, line_end = self._feedback_connection_endpoints(
             cue_center,
@@ -1024,10 +1208,27 @@ class Orientation2AFCTrainingTask(SaccadeTask):
             opacity=self.first_feedback_opacity,
         )
 
-    def _draw_cue(self, orientation):
+    def _cue_center_for_gaze(self, gaze):
+        """Move the cue with gaze; allow the result to remain off-screen."""
+        configured_center = (self.cue_center_x_px, self.cue_center_y_px)
+        if (
+            not self.gaze_contingent_stimulus_position
+            or self.use_visual_cue_as_fixation
+            or not gaze
+            or not gaze.get("valid", False)
+        ):
+            return configured_center
+        return (
+            self.cue_center_x_px + float(gaze["x"]) - self.fix_x_px,
+            self.cue_center_y_px + float(gaze["y"]) - self.fix_y_px,
+        )
+
+    def _draw_cue(self, orientation, gaze=None):
+        cue_center_x_px, cue_center_y_px = self._cue_center_for_gaze(gaze)
+        self._current_cue_center_px = (cue_center_x_px, cue_center_y_px)
         positions = dot_pair_positions(
-            self.cue_center_x_px,
-            self.cue_center_y_px,
+            cue_center_x_px,
+            cue_center_y_px,
             self.cue_dot_distance_x_px,
             self.cue_dot_distance_y_px,
             orientation,
@@ -1101,7 +1302,12 @@ class Orientation2AFCTrainingTask(SaccadeTask):
         cue_was_already_present = (
             self.stage >= 2 or self.use_visual_cue_as_fixation
         )
-        return self.give_feedback_first and cue_was_already_present
+        feedback_requested = self.give_feedback_first or getattr(
+            self,
+            "_reminder_feedback_active",
+            False,
+        )
+        return feedback_requested and cue_was_already_present
 
     def _present_training_frame(
         self,
@@ -1119,10 +1325,13 @@ class Orientation2AFCTrainingTask(SaccadeTask):
         teaching_feedback=False,
         allow_orientation_override=False,
     ):
+        # Read gaze before drawing so a gaze-contingent simulated phosphene
+        # uses the newest sample on every displayed frame.
+        gaze = self.gaze_renderer.update()
         cue_drawn = False
         if fix_visible:
             if self.use_visual_cue_as_fixation:
-                self._draw_cue(orientation)
+                self._draw_cue(orientation, gaze)
                 cue_drawn = True
             else:
                 self.fix_sub.draw()
@@ -1131,7 +1340,7 @@ class Orientation2AFCTrainingTask(SaccadeTask):
             self.fix_window_ctl.draw()
 
         if cue_visible and not cue_drawn:
-            self._draw_cue(orientation)
+            self._draw_cue(orientation, gaze)
 
         if targets_visible:
             if target_only is not None:
@@ -1148,7 +1357,7 @@ class Orientation2AFCTrainingTask(SaccadeTask):
         if teaching_feedback:
             self._draw_teaching_feedback_frames(orientation, correct_target)
 
-        gaze = self.gaze_renderer.update_and_draw()
+        self.gaze_renderer.draw()
         self.win_sub.flip()
         self.win_ctl.flip()
         pause_requested = self._poll_training_commands(
@@ -1156,11 +1365,29 @@ class Orientation2AFCTrainingTask(SaccadeTask):
         )
         return gaze, pause_requested
 
-    def _new_trial_data(self, trial_number, orientation, stim_delay_s):
+    def _new_trial_data(
+        self,
+        trial_number,
+        orientation,
+        stim_delay_s,
+        completed_trials_before=None,
+    ):
         correct_target = correct_target_for_orientation(orientation)
         wrong_opacity = self.wrong_target_opacity if self.stage >= 3 else 0.0
+        if completed_trials_before is None:
+            completed_trials_before = trial_number - 1
+        block_number, trial_in_block = self._block_position(
+            completed_trials_before
+        )
         return {
             "Trial": trial_number,
+            "Block": block_number,
+            "Trial_In_Block": trial_in_block,
+            "Trials_Per_Block": self.trials_per_block,
+            "Counts_Toward_Block": False,
+            "Block_End": False,
+            "Block_Reward_Length_ms": self.block_reward_len_s * 1000,
+            "Block_Reward_Delivered": False,
             "Status": None,
             "Training_Stage": self.stage,
             "Orientation": orientation,
@@ -1204,6 +1431,9 @@ class Orientation2AFCTrainingTask(SaccadeTask):
             "Cue_Dot_Opacity": self.cue_dot_opacity,
             "Cue_As_Fixation_Point": self.use_visual_cue_as_fixation,
             "Cue_Visible_During_Choice": self._cue_visible_during_choice(),
+            "Gaze_Contingent_Stimulus_Position": (
+                self.gaze_contingent_stimulus_position
+            ),
             "Background_Gray_Level": self.background_gray_level,
             "Background_Target_Luminance_cd_m2": (
                 self.background_target_luminance
@@ -1237,6 +1467,38 @@ class Orientation2AFCTrainingTask(SaccadeTask):
             "Wrong_Target_Opacity": wrong_opacity,
             "Give_Feedback_First": self.give_feedback_first,
             "First_Feedback_Opacity": self.first_feedback_opacity,
+            "Reminder_Feedback_Shown": False,
+            "Reminder_Triggered_By_Errors": getattr(
+                self,
+                "_reminder_triggered_by_errors",
+                False,
+            ),
+            "Reminder_Triggered_By_Interval": getattr(
+                self,
+                "_reminder_triggered_by_interval",
+                False,
+            ),
+            "Reminder_Consecutive_Error_X": getattr(
+                self,
+                "reminder_after_consecutive_errors",
+                0,
+            ),
+            "Reminder_After_Trials_Y": getattr(
+                self,
+                "reminder_after_trials",
+                0,
+            ),
+            "Reminder_Trials_Z": getattr(self, "reminder_trials", 0),
+            "Reminder_Error_Streak_Before_Trial": getattr(
+                self,
+                "_reminder_error_streak_before_trial",
+                0,
+            ),
+            "Reminder_Trials_Since_Batch_Before_Trial": getattr(
+                self,
+                "_reminder_trials_since_batch_before_trial",
+                0,
+            ),
             "Teaching_Feedback_Enabled": self.show_teaching_feedback,
             "Teaching_Feedback_Shown": False,
             "Teaching_Feedback_Duration_ms": (
@@ -1247,6 +1509,25 @@ class Orientation2AFCTrainingTask(SaccadeTask):
             "Monitor_Width_cm": self.monitor_width_cm,
             "Monitor_Height_cm": self.monitor_height_cm,
         }
+
+    def _block_position(self, completed_trials_before):
+        return (
+            completed_trials_before // self.trials_per_block + 1,
+            completed_trials_before % self.trials_per_block + 1,
+        )
+
+    def _apply_trial_outcome_to_block(self, trial_data, status):
+        counts_toward_block = status == "Success"
+        trial_in_block = trial_data.get("Trial_In_Block")
+        trials_per_block = getattr(self, "trials_per_block", None)
+        trial_data["Counts_Toward_Block"] = counts_toward_block
+        trial_data["Block_End"] = (
+            counts_toward_block
+            and trial_in_block is not None
+            and trials_per_block is not None
+            and trial_in_block == trials_per_block
+        )
+        return counts_toward_block
 
     def _wait_for_fixation(self, trial_data):
         candidate_start = None
@@ -1303,43 +1584,41 @@ class Orientation2AFCTrainingTask(SaccadeTask):
 
     def _run_stimulus(self, trial_data):
         pause_requested = False
+        self._schedule_flip_time(trial_data, "Time_FixationPointOff")
         self._schedule_flip_time(trial_data, "Time_StimOn")
-        gaze, requested = self._present_training_frame(
-            fix_visible=True,
-            fix_window_active=True,
+        _, requested = self._present_training_frame(
             cue_visible=True,
             orientation=trial_data["Orientation"],
             correct_target=trial_data["Correct_Target"],
         )
         pause_requested = pause_requested or requested
-        if not self._in_window(
-            gaze,
-            self.fix_x_px,
-            self.fix_y_px,
-            self.fix_radius_px,
-        ):
-            return False, pause_requested
 
         while self.now() - trial_data["Time_StimOn"] < self.stim_duration_s:
-            gaze, requested = self._present_training_frame(
-                fix_visible=True,
-                fix_window_active=True,
+            _, requested = self._present_training_frame(
                 cue_visible=True,
                 orientation=trial_data["Orientation"],
                 correct_target=trial_data["Correct_Target"],
             )
             pause_requested = pause_requested or requested
-            if not self._in_window(
-                gaze,
-                self.fix_x_px,
-                self.fix_y_px,
-                self.fix_radius_px,
-            ):
-                return False, pause_requested
         return True, pause_requested
 
     def _show_choice_onset(self, trial_data):
         cue_visible = self._cue_visible_during_choice()
+        reminder_feedback = self._first_feedback_during_choice()
+        trial_data["Reminder_Feedback_Shown"] = reminder_feedback
+        if reminder_feedback:
+            sources = []
+            if self.give_feedback_first:
+                sources.append("MANUAL")
+            if trial_data.get("Reminder_Triggered_By_Errors"):
+                sources.append("ERRORS")
+            if trial_data.get("Reminder_Triggered_By_Interval"):
+                sources.append("INTERVAL")
+            self._send_tracker_event(
+                "PRE_CHOICE_REMINDER "
+                f"SOURCES {'+'.join(sources) or 'UNKNOWN'} "
+                f"TRIAL {trial_data.get('Trial', 'UNKNOWN')}"
+            )
         if trial_data["Time_StimOn"] is not None and not cue_visible:
             self._schedule_flip_time(trial_data, "Time_StimOff")
         self._schedule_flip_time(trial_data, "Time_FixationPointOff")
@@ -1350,7 +1629,7 @@ class Orientation2AFCTrainingTask(SaccadeTask):
             orientation=trial_data["Orientation"],
             correct_target=trial_data["Correct_Target"],
             wrong_opacity=trial_data["Wrong_Target_Opacity"],
-            first_feedback=self._first_feedback_during_choice(),
+            first_feedback=reminder_feedback,
         )
 
     def _run_choice(self, trial_data, initial_gaze, initial_pause):
@@ -1434,10 +1713,12 @@ class Orientation2AFCTrainingTask(SaccadeTask):
             and trial_data.get("Choice") in ("Right", "Up")
         )
 
-    def _run_teaching_feedback(self, trial_data):
-        """Replay the animal's completed choice and its cue for two seconds."""
+    def _run_teaching_feedback(self, trial_data, after_first_flip=None):
+        """Replay the choice, running an optional action after its first flip."""
         if not self._teaching_feedback_is_due(trial_data):
             self._black_out_training(trial_data)
+            if after_first_flip is not None:
+                after_first_flip()
             return False
 
         selected_target = trial_data["Choice"]
@@ -1453,6 +1734,7 @@ class Orientation2AFCTrainingTask(SaccadeTask):
         trial_data["Teaching_Feedback_Shown"] = True
 
         pause_requested = False
+        first_frame_presented = False
         while (
             trial_data["Time_FeedbackOn"] is None
             or self.now() - trial_data["Time_FeedbackOn"]
@@ -1468,22 +1750,53 @@ class Orientation2AFCTrainingTask(SaccadeTask):
                 teaching_feedback=selected_correctly,
             )
             pause_requested = pause_requested or requested
+            if not first_frame_presented:
+                first_frame_presented = True
+                if after_first_flip is not None:
+                    after_first_flip()
 
         self._schedule_flip_time(trial_data, "Time_FeedbackOff")
         _, requested = self._present_training_frame()
         return pause_requested or requested
 
-    def _run_one_trial(self, trial_number):
+    def _deliver_block_reward_if_due(self, trial_data):
+        if not trial_data.get("Block_End", False):
+            return False
+
+        duration_ms = int(self.block_reward_len_s * 1000)
+        trial_data["Time_BlockReward"] = self.now()
+        trial_data["Block_Reward_Delivered"] = True
+        self._send_tracker_event(
+            f"BLOCK_REWARD BLOCK {trial_data['Block']} "
+            f"TRIAL {trial_data['Trial']} DURATION_MS {duration_ms}"
+        )
+        print(
+            f"[Block {trial_data['Block']}] Completed "
+            f"{self.trials_per_block} trials; extra reward {duration_ms} ms."
+        )
+        self.arduino.reward(duration_ms)
+        return True
+
+    def _run_one_trial(self, trial_number, completed_trials_before=None):
+        self._begin_trial_reminder()
         orientation = self._next_orientation()
         stim_delay_s = self.rng.uniform(
             self.stim_delay_min_s,
             self.stim_delay_max_s,
         )
-        trial_data = self._new_trial_data(
-            trial_number,
-            orientation,
-            stim_delay_s,
-        )
+        if completed_trials_before is None:
+            trial_data = self._new_trial_data(
+                trial_number,
+                orientation,
+                stim_delay_s,
+            )
+        else:
+            trial_data = self._new_trial_data(
+                trial_number,
+                orientation,
+                stim_delay_s,
+                completed_trials_before=completed_trials_before,
+            )
         event.clearEvents()
         self.gaze_renderer.reset_trail()
         self._send_tracker_event(f"TRIALID {trial_number}")
@@ -1540,24 +1853,37 @@ class Orientation2AFCTrainingTask(SaccadeTask):
                     )
                     pause_requested = pause_requested or requested
 
+        reward_after_first_flip = None
         if status == "Success":
-            self.arduino.trial_success()
-            trial_data["Time_Reward"] = self.now()
-            self._send_tracker_event(f"REWARD TRIAL {trial_number}")
-            self.arduino.reward(int(self.reward_len_s * 1000))
+            def reward_after_first_flip():
+                self.arduino.trial_success()
+                trial_data["Time_Reward"] = self.now()
+                self._send_tracker_event(f"REWARD TRIAL {trial_number}")
+                self.arduino.reward(int(self.reward_len_s * 1000))
         elif status in ("Incorrect", "Break_Fix", "Break_Stim", "Break_Choice"):
             self.arduino.trial_break()
         else:
             self.arduino.trial_nofix()
 
-        requested = self._run_teaching_feedback(trial_data)
+        requested = self._run_teaching_feedback(
+            trial_data,
+            after_first_flip=reward_after_first_flip,
+        )
         pause_requested = pause_requested or requested
         if status in ("Incorrect", "Break_Fix", "Break_Stim", "Break_Choice"):
             core.wait(self.timeout_s)
 
         self.arduino.trial_end()
         trial_data["Status"] = status
+        self._apply_trial_outcome_to_block(trial_data, status)
+        self._schedule_repeat_after_failure(
+            status,
+            orientation,
+            trial_number,
+        )
+        self._deliver_block_reward_if_due(trial_data)
         trial_data["Time_End"] = self.now()
+        self._record_trial_for_reminders(trial_data)
         self._send_tracker_event(f"!V TRIAL_VAR Status {status}")
         self._send_tracker_event(
             f"!V TRIAL_VAR Choice {trial_data['Choice'] or 'None'}"
@@ -1604,6 +1930,7 @@ class Orientation2AFCTrainingTask(SaccadeTask):
         self._prepare_stage_options()
         return self.task_manager.prompt_for_runtime_parameters(
             title="Runtime Parameters / 运行中参数",
+            disabled_parameters={"Trials per Block (N)"},
             allow_recalibration=bool(
                 getattr(
                     self.tracker_backend,
@@ -1611,6 +1938,7 @@ class Orientation2AFCTrainingTask(SaccadeTask):
                     False,
                 )
             ),
+            notice="Trials per Block (N) is locked after the task starts.",
         )
 
     def _recalibrate_eyelink(self):
@@ -1634,10 +1962,42 @@ class Orientation2AFCTrainingTask(SaccadeTask):
         self.gaze_renderer.reset_trail()
         event.clearEvents()
 
+    def _deliver_resume_reward(self, pause_action):
+        duration_ms = int(self.reward_len_s * 1000)
+        self._send_tracker_event(
+            f"TASK_RESUME_REWARD ACTION {str(pause_action).upper()} "
+            f"DURATION_MS {duration_ms}"
+        )
+        print(f"[Resume] Task restarting; cue reward {duration_ms} ms.")
+        self.arduino.reward(duration_ms)
+
+    def _resume_from_runtime_pause(self):
+        self._present_training_frame()
+        pause_action = self._prompt_for_runtime_parameters()
+        if pause_action == "cancel":
+            self._send_tracker_event(
+                "FINEVISION_PAUSE_ACTION CANCEL_EDITS_CONTINUE"
+            )
+        else:
+            self.update_params()
+            if pause_action == "recalibrate":
+                self._recalibrate_eyelink()
+            else:
+                self._send_tracker_event(
+                    "FINEVISION_PAUSE_ACTION CONFIRM_CONTINUE"
+                )
+        event.clearEvents()
+        self._deliver_resume_reward(pause_action)
+        return pause_action
+
     def run_task(self):
-        if not self._prompt_for_parameters():
+        if (
+            not getattr(self.task_manager, "session_parameters_confirmed", False)
+            and not self._prompt_for_parameters()
+        ):
             raise TaskAbort()
         self.update_params()
+        self._locked_trials_per_block = self.trials_per_block
         event.clearEvents()
 
         print(f"\n=== {self.task_display_name} started ===")
@@ -1647,29 +2007,20 @@ class Orientation2AFCTrainingTask(SaccadeTask):
             "before the next trial."
         )
         print(
+            f"Blocks contain {self.trials_per_block} trials; block reward "
+            f"is {self.block_reward_len_s:.3f} s."
+        )
+        print(
             "During ITI: press H for a horizontal next cue or V for a "
             "vertical next cue; press neither for random."
         )
 
         trial_number = 1
+        completed_trials = 0
         pause_requested = False
         while True:
             if pause_requested:
-                self._present_training_frame()
-                pause_action = self._prompt_for_runtime_parameters()
-                if pause_action == "cancel":
-                    self._send_tracker_event(
-                        "FINEVISION_PAUSE_ACTION CANCEL_SESSION"
-                    )
-                    raise TaskAbort()
-                self.update_params()
-                if pause_action == "recalibrate":
-                    self._recalibrate_eyelink()
-                else:
-                    self._send_tracker_event(
-                        "FINEVISION_PAUSE_ACTION CONFIRM_CONTINUE"
-                    )
-                event.clearEvents()
+                self._resume_from_runtime_pause()
                 pause_requested = False
 
             if self._run_iti():
@@ -1677,12 +2028,20 @@ class Orientation2AFCTrainingTask(SaccadeTask):
                 continue
 
             print(
-                f"\n--- Trial {trial_number} | Stage {self.stage} | "
+                f"\n--- Trial {trial_number} | "
+                f"Block {completed_trials // self.trials_per_block + 1}, "
+                f"{completed_trials % self.trials_per_block + 1}/"
+                f"{self.trials_per_block} | Stage {self.stage} | "
                 f"wrong opacity {self.wrong_target_opacity:.2f} ---"
             )
-            trial_data, requested = self._run_one_trial(trial_number)
+            trial_data, requested = self._run_one_trial(
+                trial_number,
+                completed_trials_before=completed_trials,
+            )
             self._write_trial(trial_data)
             pause_requested = pause_requested or requested
+            if trial_data["Counts_Toward_Block"]:
+                completed_trials += 1
 
             total_correct, total_choices = choice_accuracy_counts(
                 self.behavior_log
@@ -1714,8 +2073,11 @@ class Orientation2AFCTrainingTask(SaccadeTask):
             trial_number += 1
 
 
-def _create_session_dir(script_dir, session_prefix="Orientation2AFC"):
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+def _create_session_dir(script_dir, session_prefix="Orientation2AFC", subject_id="Unknown"):
+    # This shared filename suffix includes the confirmed subject and start time.
+    timestamp = (
+        subject_filename(subject_id) + "_" + datetime.now().strftime("%Y%m%d_%H%M%S")
+    )
     base = os.path.join(
         script_dir,
         "experiment_logs",
@@ -1727,7 +2089,7 @@ def _create_session_dir(script_dir, session_prefix="Orientation2AFC"):
         candidate = f"{base}_{suffix:03d}"
         suffix += 1
     os.makedirs(candidate)
-    return timestamp, candidate
+    return timestamp + candidate[len(base):], candidate
 
 
 def main(
@@ -1744,9 +2106,25 @@ def main(
     task_label="Orientation 2AFC training",
 ):
     script_dir = os.path.dirname(os.path.abspath(__file__))
+    task_manager = FineVision_Notebook(
+        task_name=task_name,
+        default_params=default_params,
+        parameter_groups=parameter_groups,
+        parameter_validator=parameter_validator,
+    )
+    if saved_params_migrator is not None:
+        saved_params_migrator(task_manager)
+    stage = task_manager.exp_params.get("Training Stage")
+    if not isinstance(stage, list):
+        task_manager.exp_params["Training Stage"] = [str(stage)] + [
+            option for option in task_class.stage_options if option != str(stage)
+        ]
+    if not confirm_session_parameters(task_manager):
+        return
     session_timestamp, save_dir = _create_session_dir(
         script_dir,
         session_prefix=session_prefix,
+        subject_id=task_manager.exp_params["Subject ID"],
     )
     session_t0 = time.perf_counter()
 
@@ -1800,14 +2178,6 @@ def main(
             title=f"{control_title} Control ({tracker_runtime.mode})",
         )
 
-        task_manager = FineVision_Notebook(
-            task_name=task_name,
-            default_params=default_params,
-            parameter_groups=parameter_groups,
-            parameter_validator=parameter_validator,
-        )
-        if saved_params_migrator is not None:
-            saved_params_migrator(task_manager)
         task = task_class(
             win_subject,
             win_control,

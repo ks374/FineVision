@@ -43,13 +43,19 @@ class OrientationBarTrainingTests(unittest.TestCase):
     def test_shared_training_features_keep_the_same_defaults(self):
         for field in (
             "Show Post-Trial Teaching Feedback",
+            "Trials per Block (N)",
             "Give Feedback First",
             "First Feedback Opacity (0-1)",
+            "Reminder After Consecutive Errors (X)",
+            "Reminder After Trials (Y)",
+            "Reminder Trials (Z)",
             "Use Visual Cue as Fixation Point",
             "Keep Cue Visible During Choice",
+            "Gaze-Contingent Stimulus Position",
             "Cue Brightness Level (0-182)",
             "Choice Target Brightness Level (0-182)",
             "Correct Choice Hold Time (ms)",
+            "Block Reward Length (s)",
         ):
             self.assertEqual(BAR_DEFAULT_PARAMS[field], DOT_DEFAULT_PARAMS[field])
 
@@ -57,6 +63,16 @@ class OrientationBarTrainingTests(unittest.TestCase):
         self.assertIs(
             OrientationBar2AFCTrainingTask._run_teaching_feedback,
             Orientation2AFCTrainingTask._run_teaching_feedback,
+        )
+
+    def test_bar_task_inherits_fixation_off_and_gaze_contingent_logic(self):
+        self.assertIs(
+            OrientationBar2AFCTrainingTask._run_stimulus,
+            Orientation2AFCTrainingTask._run_stimulus,
+        )
+        self.assertIs(
+            OrientationBar2AFCTrainingTask._cue_center_for_gaze,
+            Orientation2AFCTrainingTask._cue_center_for_gaze,
         )
 
     def test_bar_dimensions_are_validated(self):
@@ -93,6 +109,36 @@ class OrientationBarTrainingTests(unittest.TestCase):
             task._bar_size_px("Vertical", choice=False),
             (20.0, 120.0),
         )
+
+    def test_bar_cue_uses_the_gaze_compensated_center(self):
+        task = OrientationBar2AFCTrainingTask.__new__(
+            OrientationBar2AFCTrainingTask
+        )
+        task.gaze_contingent_stimulus_position = True
+        task.use_visual_cue_as_fixation = False
+        task.cue_center_x_px = 10.0
+        task.cue_center_y_px = 20.0
+        task.fix_x_px = 100.0
+        task.fix_y_px = 200.0
+        task.scale_x = 0.5
+        task.scale_y = 0.25
+        task.cue_bar_length_x_px = 100.0
+        task.cue_bar_length_y_px = 120.0
+        task.cue_bar_width_x_px = 20.0
+        task.cue_bar_width_y_px = 24.0
+        task.cue_bar_opacity = 0.8
+        task.cue_bar_sub = FakeStimulus()
+        task.cue_bar_ctl = FakeStimulus()
+
+        task._draw_cue(
+            "Horizontal",
+            {"x": 103.0, "y": 196.0, "valid": True},
+        )
+
+        self.assertEqual(task.cue_bar_sub.pos, (13.0, 16.0))
+        self.assertEqual(task.cue_bar_ctl.pos, (6.5, 4.0))
+        self.assertEqual(task.cue_bar_sub.size, (100.0, 24.0))
+        self.assertEqual(task._current_cue_center_px, (13.0, 16.0))
 
     def test_stage_3_choice_uses_oriented_bar(self):
         task = OrientationBar2AFCTrainingTask.__new__(
@@ -143,9 +189,11 @@ class OrientationBarTrainingTests(unittest.TestCase):
     def test_bar_parameters_load_and_produce_a_complete_trial_row(self):
         params = BAR_DEFAULT_PARAMS.copy()
         params["Training Stage"] = BAR_STAGE_OPTIONS[2]
+        params["Trials per Block (N)"] = 10
         task = OrientationBar2AFCTrainingTask.__new__(
             OrientationBar2AFCTrainingTask
         )
+        task._locked_trials_per_block = 40
         task.task_manager = SimpleNamespace(exp_params=params)
         task.win_sub = SimpleNamespace(size=(1920, 1080), color=None)
         task.win_ctl = SimpleNamespace(size=(800, 450), color=None)
@@ -153,13 +201,28 @@ class OrientationBarTrainingTests(unittest.TestCase):
 
         task.update_params()
         task._last_orientation_source = "Random"
-        trial_data = task._new_trial_data(1, "Horizontal", 0.5)
+        trial_data = task._new_trial_data(40, "Horizontal", 0.5)
+        next_block_trial = task._new_trial_data(41, "Vertical", 0.5)
 
         self.assertEqual(task.cue_bar_length_deg, 2.0)
         self.assertEqual(task.choice_bar_width_deg, 0.35)
+        self.assertEqual(task.trials_per_block, 40)
+        self.assertEqual(params["Trials per Block (N)"], 40)
         self.assertEqual(set(trial_data), set(BAR_TRIAL_LOG_FIELDS))
         self.assertEqual(trial_data["Choice_Target_Style"], "Bars")
         self.assertNotIn("Cue_Dot_Radius_deg", trial_data)
+        self.assertEqual(
+            (trial_data["Block"], trial_data["Trial_In_Block"]),
+            (1, 40),
+        )
+        self.assertFalse(trial_data["Block_End"])
+        task._apply_trial_outcome_to_block(trial_data, "Success")
+        self.assertTrue(trial_data["Block_End"])
+        self.assertEqual(
+            (next_block_trial["Block"], next_block_trial["Trial_In_Block"]),
+            (2, 1),
+        )
+        self.assertFalse(next_block_trial["Block_End"])
 
 
 if __name__ == "__main__":

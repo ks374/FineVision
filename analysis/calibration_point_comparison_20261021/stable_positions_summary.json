@@ -1,0 +1,33 @@
+{
+  "native_edf_continuous_samples": 0,
+  "native_report_points": 9,
+  "custom_calibration_points": 9,
+  "custom_validation_points": 9,
+  "task_completed_fixation_trials": 258,
+  "task_raw_samples": 25800,
+  "fixation_target": [
+    -3,
+    5
+  ],
+  "fixation_median": [
+    -2.0456869522329177,
+    6.237309917948953
+  ],
+  "fixation_offset": [
+    0.9543130477670823,
+    1.237309917948953
+  ],
+  "sources": {
+    "custom_calibration": "D:\\Chenghang\\FineVision\\experiment_logs\\Calibration_Monkey_H18_20261021_104624_135621",
+    "custom_validation": "D:\\Chenghang\\FineVision\\experiment_logs\\Validation_Monkey_H18_20261021_110316_945149",
+    "native_edf": "D:\\Chenghang\\FineVision\\experiment_logs\\eyelink_native_calibration_Monkey_I18_20261021_104318_620401.edf",
+    "task": "D:\\Chenghang\\FineVision\\experiment_logs\\Saccade_Elec_Intan_Monkey_H18_20261021_115959_362647"
+  },
+  "coordinate_convention": "atan(centered_physical_displacement/viewing_distance); custom/task60cm, native61cm; right/up positive",
+  "task_estimator": "coordinate-wise median of per-trial medians of valid RAW-affine positions during last100ms before completed fixation offset",
+  "notes": [
+    "Calibration medians after fitting the same data are not independent accuracy estimates.",
+    "Native calibration trajectory samples are absent; native VALIDATION offsets are shown instead.",
+    "Native session subject label Monkey_I18; custom/task label Monkey_H18; verify identity before biological comparisons."
+  ]
+}

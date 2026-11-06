@@ -28,12 +28,12 @@ Every task receives an object with the same gaze methods:
 - `get_latest_cal()` returns FineVision task coordinates and validity.
 - `set_calibration_left/right()` stores FineVision's custom mapping.
 
-EyeLink is configured with `sample_source: "gaze"`. PyLink supplies EyeLink's
-calibrated right-eye screen-pixel coordinates. The backend converts the
-top-left EyeLink coordinate system to centered FineVision coordinates and
-deliberately bypasses FineVision's affine calibration, preventing accidental
-double calibration. HREF plus FineVision affine calibration remains available
-as a fallback configuration.
+EyeLink is configured with `sample_source: "raw"`. PyLink supplies the detected
+right-eye pupil centre in camera coordinates through `getRawPupil()`.
+FineVision then maps those coordinates into centered task pixels with its own
+affine calibration. This RAW source is not an unprocessed camera image; it is
+the pupil centre already detected by the EyeLink tracker. HREF and calibrated
+GAZE remain available as optional configurations.
 
 ## Entry scripts
 
@@ -67,14 +67,17 @@ The original task filenames remain backward-compatible QY entry points.
 3. Confirm the Host address in `eyelink_setting.json` (default `100.1.1.1`).
 4. On the Host, position the camera and confirm stable right-eye pupil/CR
    tracking.
-5. Run `EyeLink_Native_Calibration.py`, complete HV5 calibration and validation,
-   and leave that successful EyeLink calibration active.
-6. Run the desired `*_EyeLink.py` task. Do not run FineVision's custom
-   calibration in the normal GAZE workflow.
+5. For the default RAW workflow, edit `eyelink_raw_pupil_setting.json` for a
+   rough manual mapping or run `Calibration_Task_EyeLink.py` to fit and save
+   the mapping.
+6. Run the desired `*_EyeLink.py` task. Restart the task after manually editing
+   the calibration JSON because it is loaded when the backend starts.
 
-For the fallback HREF workflow, change `sample_source` to `href`, select
-`eyelink_default_setting.json`, and run `Calibration_Task_EyeLink.py` before
-the experiment.
+For the HREF workflow, change `sample_source` to `href`, select
+`eyelink_default_setting.json`, and run `Calibration_Task_EyeLink.py`. For the
+EyeLink-calibrated screen-coordinate workflow, use `sample_source: "gaze"` and
+`eyelink_gaze_identity_setting.json`, then complete EyeLink native calibration
+and validation before the task.
 
 ### Native EyeLink calibration from the task computer
 
@@ -120,7 +123,7 @@ in the task CSV.
 ## FineVision affine calibration
 
 All task code still reads one hardware-neutral gaze position from
-`get_latest_cal()`. QY and the optional EyeLink HREF workflow apply a complete
+`get_latest_cal()`. QY and the EyeLink RAW/HREF workflows apply a complete
 two-dimensional affine mapping for each eye:
 
 ```text
@@ -132,9 +135,15 @@ Legacy QY and EyeLink JSON files containing only `ox`, `oy`, `gx`, and `gy`
 remain valid: missing `gxy` and `gyx` values are treated as zero. A new full
 calibration saves `model: "affine_2d"` and all six coefficients.
 
-The normal EyeLink GAZE workflow does not apply this equation. GAZE is already
+The optional EyeLink GAZE workflow does not apply this equation. GAZE is already
 calibrated by the EyeLink Host; the backend only changes coordinate origin and
 Y direction.
+
+In RAW mode, `raw_x` and `raw_y` are the camera coordinates returned by
+`getRawPupil()`. They depend on the camera/eye geometry and must not reuse HREF,
+GAZE, or QY coefficients. For example, setting right-eye `ox`, `gx`, and `gxy`
+all to zero fixes the task-space x coordinate at the screen centre while y
+continues to use its configured mapping.
 
 `Calibration_Task.py` also uses the categorized parameter UI. Its nine target
 positions are defined in degrees rather than fixed pixels and converted using
@@ -217,17 +226,19 @@ with an additional trial-by-trial correction.
 ## Configuration files
 
 - `eyelink_setting.json`: Host address, sample rate, sample source, and
-  calibration filename.
+  calibration filename. Supported sources are `raw`, `href`, and `gaze`.
+- `eyelink_raw_pupil_setting.json`: active FineVision mapping from right-eye
+  pupil-camera coordinates into task-screen pixels.
 - `eyelink_gaze_identity_setting.json`: safety identity parameters for the
-  active GAZE workflow; the backend bypasses affine calibration in code.
-- `eyelink_default_setting.json`: fallback FineVision mapping from right-eye
+  optional GAZE workflow; the backend bypasses affine calibration in code.
+- `eyelink_default_setting.json`: optional FineVision mapping from right-eye
   EyeLink HREF coordinates into task-screen pixels.
 - `eyelink_gaze_default_setting.json`: inactive record of an earlier GAZE
   correction; active tasks do not load it.
 - `default_setting.json`: existing QY calibration parameters.
 
-Do not copy calibration coefficients between GAZE, HREF, and QY files; these
-are different coordinate systems.
+Do not copy calibration coefficients between RAW, GAZE, HREF, and QY files;
+these are different coordinate systems.
 
 ## Reading EDF with Python
 

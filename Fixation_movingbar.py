@@ -1,12 +1,13 @@
 """Fixation training task with moving bars in the lower-right visual field."""
 
 import csv
+import json
 import math
 import os
 import random
 import time
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
 from multiprocessing import Queue, Value, freeze_support
 from queue import Full
 
@@ -17,6 +18,8 @@ from FineVision_Notebook import FineVision_Notebook
 from FineVision_Util import ArduinoController
 from GazeTrackerRenderer import GazeTrackerRenderer
 from eyetracker import create_tracker_runtime
+from FramePulse import DisplaySync
+from SessionNaming import confirm_session_parameters, subject_filename
 
 
 IS_SIMULATING = 0
@@ -35,8 +38,12 @@ DEFAULT_PARAMS = {
     "Fix Window Radius (pix)": 500,
     "Bar On After Fixation Start (ms)": 500,
     "Bar Motion Duration (s)": 1.0,
-    "Bar Width for 4deg (deg)": 0.04,
-    "Bar Width for 20deg (deg)": 0.19,
+    "Bar Width for 4deg (deg)": "[0.04, 0.2]",
+    "Bar Width for 20deg (deg)": "[0.04, 0.2]",
+    "Total Blocks": 10,
+    "Fixation Diameter (deg)": 0.2,
+    "Fixation X (deg)": 0.0,
+    "Fixation Y (deg)": 0.0,
     "Bar Opacity (0-1)": 1.0,
     "Viewing Distance (cm)": 55.0,
     "Subject Monitor Width (cm)": 54.0,
@@ -102,6 +109,12 @@ TIME_FIELDS = [
     "Time_End",
 ]
 
+SYNC_TIME_FIELDS = ["Time_FixAcquired", "Time_Break", "Time_NoFix", "Time_Success",
+                    "Time_OutcomePDOn", "Time_OutcomePDOff", "Time_PDOn", "Time_PDOff"]
+TIME_FIELDS.extend(SYNC_TIME_FIELDS)
+TRIAL_LOG_FIELDS.extend(SYNC_TIME_FIELDS + ["Session_T0_PerfCounter",
+    "Session_T0_UTC", "Parameters_JSON"])
+
 
 class TaskAbort(Exception):
     """Raised when Escape is pressed."""
@@ -141,11 +154,28 @@ def visual_angle_to_pixels(
     )
 
 
-def make_condition_block(rng):
-    """One balanced block: four directions x two angular ranges."""
+def parse_widths(value):
+    """Accept a scalar or a JSON array; keep the editor field as free text."""
+    if isinstance(value, str):
+        value = json.loads(value)
+    values = value if isinstance(value, (list, tuple)) else [value]
+    if not values or any(isinstance(v, bool) or not isinstance(v, (int, float))
+                         or not math.isfinite(v) or v <= 0 for v in values):
+        raise ValueError('Bar widths must be positive finite numbers, e.g. [0.04, 0.2].')
+    if len(set(values)) != len(values):
+        raise ValueError('Bar widths must not contain duplicates.')
+    return [float(v) for v in values]
+
+
+def make_condition_block(rng, widths_by_range=None):
+    """Each range/width/direction combination occurs exactly once."""
+    if widths_by_range is None:
+        widths_by_range = {r: parse_widths(DEFAULT_PARAMS[f"Bar Width for {r:g}deg (deg)"])
+                           for r in RANGES_DEG}
     conditions = [
-        {"direction": direction, "range_deg": range_deg}
+        {"direction": direction, "range_deg": range_deg, "bar_width_deg": width}
         for range_deg in RANGES_DEG
+        for width in widths_by_range[range_deg]
         for direction in DIRECTIONS
     ]
     rng.shuffle(conditions)
@@ -161,14 +191,12 @@ def calculate_scan_geometry(
     monitor_height_cm,
     screen_width_px,
     screen_height_px,
+    fixation_pos=(0.0, 0.0),
 ):
     """
-    Build a lower-right scan aperture.
-
-    The 4-degree aperture starts at the fixation point and remains entirely in
-    the lower-right quadrant.  If the 20-degree aperture is taller than the
-    lower half-screen, its bottom is pinned to the screen bottom and its top is
-    allowed to cross the horizontal midline.
+    Build a fixation-relative aperture, shifted 10% along the motion axis.
+    Endpoints describe bar centers, independent of thickness. Off-screen
+    portions are clipped by the display; never reposition the requested scan.
     """
     x_span = visual_angle_to_pixels(
         range_deg, viewing_distance_cm, monitor_width_cm, screen_width_px
@@ -189,47 +217,33 @@ def calculate_scan_geometry(
         screen_height_px,
     )
 
-    half_width = screen_width_px / 2.0
-    half_height = screen_height_px / 2.0
-    if x_span > half_width:
-        raise ValueError(
-            f"{range_deg:g}deg horizontal scan ({x_span:.1f}px) does not fit "
-            f"to the right of fixation ({half_width:.1f}px available)."
-        )
-    if y_span > screen_height_px:
-        raise ValueError(
-            f"{range_deg:g}deg vertical scan ({y_span:.1f}px) does not fit "
-            f"on the display ({screen_height_px}px available)."
-        )
-
-    x_min = 0.0
-    x_max = x_span
-    if y_span <= half_height:
-        y_top = 0.0
-        y_bottom = -y_span
-    else:
-        y_bottom = -half_height
-        y_top = y_bottom + y_span
+    # Shift only the motion axis by 10%; PsychoPy uses positive Y upward.
+    fx, fy = fixation_pos
+    horizontal = direction in ("Right", "Left")
+    x_min = fx - (0.1 * x_span if horizontal else 0.0)
+    x_max = x_min + x_span
+    y_top = fy + (0.0 if horizontal else 0.1 * y_span)
+    y_bottom = y_top - y_span
 
     center_x = (x_min + x_max) / 2.0
     center_y = (y_bottom + y_top) / 2.0
 
     if direction == "Right":
         bar_size = (thickness_x, y_span)
-        start_pos = (x_min - thickness_x / 2.0, center_y)
-        end_pos = (x_max - thickness_x / 2.0, center_y)
+        start_pos = (x_min, center_y)
+        end_pos = (x_max, center_y)
     elif direction == "Left":
         bar_size = (thickness_x, y_span)
-        start_pos = (x_max + thickness_x / 2.0, center_y)
-        end_pos = (x_min + thickness_x / 2.0, center_y)
+        start_pos = (x_max, center_y)
+        end_pos = (x_min, center_y)
     elif direction == "Down":
         bar_size = (x_span, thickness_y)
-        start_pos = (center_x, y_top + thickness_y / 2.0)
-        end_pos = (center_x, y_bottom + thickness_y / 2.0)
+        start_pos = (center_x, y_top)
+        end_pos = (center_x, y_bottom)
     elif direction == "Up":
         bar_size = (x_span, thickness_y)
-        start_pos = (center_x, y_bottom - thickness_y / 2.0)
-        end_pos = (center_x, y_top - thickness_y / 2.0)
+        start_pos = (center_x, y_bottom)
+        end_pos = (center_x, y_top)
     else:
         raise ValueError(f"Unknown direction: {direction}")
 
@@ -255,8 +269,7 @@ def validate_params(params):
         "Fixation Acquire Time (ms)",
         "Fix Window Radius (pix)",
         "Bar Motion Duration (s)",
-        "Bar Width for 4deg (deg)",
-        "Bar Width for 20deg (deg)",
+        "Fixation Diameter (deg)",
         "Viewing Distance (cm)",
         "Subject Monitor Width (cm)",
         "Subject Monitor Height (cm)",
@@ -264,7 +277,7 @@ def validate_params(params):
         "ITI (s)",
     ]
     for field in positive_fields:
-        if float(params[field]) <= 0:
+        if not math.isfinite(float(params[field])) or float(params[field]) <= 0:
             raise ValueError(f"{field} must be greater than zero.")
     if float(params["Bar On After Fixation Start (ms)"]) < 0:
         raise ValueError("Bar On After Fixation Start (ms) cannot be negative.")
@@ -273,6 +286,20 @@ def validate_params(params):
     opacity = float(params["Bar Opacity (0-1)"])
     if not 0.0 <= opacity <= 1.0:
         raise ValueError("Bar Opacity (0-1) must be between 0 and 1.")
+    for r in RANGES_DEG:
+        parse_widths(params[f"Bar Width for {r:g}deg (deg)"])
+    blocks = float(params['Total Blocks'])
+    if not math.isfinite(blocks) or blocks < 1 or not blocks.is_integer():
+        raise ValueError('Total Blocks must be a positive integer.')
+    for key in ('Fixation X (deg)', 'Fixation Y (deg)'):
+        if not math.isfinite(float(params[key])):
+            raise ValueError(f'{key} must be finite.')
+
+
+def parameter_summary(params):
+    validate_params(params)
+    count = 4 * sum(len(parse_widths(params[f'Bar Width for {r:g}deg (deg)'])) for r in RANGES_DEG)
+    return f'{count} conditions/block x {int(float(params["Total Blocks"]))} blocks = {count * int(float(params["Total Blocks"]))} successful trials; failures repeat.'
 
 
 class FixationMovingBarTask:
@@ -289,6 +316,7 @@ class FixationMovingBarTask:
         gaze_log_queue,
         dropped_samples,
         tracker_backend=None,
+        session_utc=None,
     ):
         self.win_sub = win_sub
         self.win_ctl = win_ctl
@@ -301,6 +329,19 @@ class FixationMovingBarTask:
         self.gaze_log_queue = gaze_log_queue
         self.dropped_samples = dropped_samples
         self.tracker_backend = tracker_backend
+        self.session_utc = session_utc
+        self.current_trial = None
+        self.pulse = DisplaySync()
+        self.events, self.frames = [], []
+        self.quit_requested = False
+        self._finishing_code = False
+        self._previous_flip = None
+        self._flip_session_time = None
+        self._pending_marks = []
+        self.nominal_period = float(win_sub.monitorFramePeriod)
+        self.pd = visual.Rect(win_sub, width=160, height=160, units="pix",
+            pos=(win_sub.size[0] / 2 - 90, -win_sub.size[1] / 2 + 90),
+            colorSpace="rgb255", fillColor=(0, 0, 0), lineColor=(0, 0, 0), autoLog=False)
         self._last_sim_gaze_log_time = -math.inf
 
         self.scale_x = win_ctl.size[0] / win_sub.size[0]
@@ -340,13 +381,23 @@ class FixationMovingBarTask:
         )
         self.bar_duration_s = float(params["Bar Motion Duration (s)"])
         self.bar_width_by_range = {
-            4.0: float(params["Bar Width for 4deg (deg)"]),
-            20.0: float(params["Bar Width for 20deg (deg)"]),
+            r: parse_widths(params[f"Bar Width for {r:g}deg (deg)"])
+            for r in RANGES_DEG
         }
+        self.total_blocks = int(float(params['Total Blocks']))
         self.bar_opacity = float(params["Bar Opacity (0-1)"])
         self.viewing_distance_cm = float(params["Viewing Distance (cm)"])
         self.monitor_width_cm = float(params["Subject Monitor Width (cm)"])
         self.monitor_height_cm = float(params["Subject Monitor Height (cm)"])
+        self.fixation_pos = (
+            visual_angle_to_pixels(float(params['Fixation X (deg)']), self.viewing_distance_cm,
+                                   self.monitor_width_cm, self.win_sub.size[0]),
+            visual_angle_to_pixels(float(params['Fixation Y (deg)']), self.viewing_distance_cm,
+                                   self.monitor_height_cm, self.win_sub.size[1]),
+        )
+        self.fixation_diameter_px = visual_angle_to_pixels(
+            float(params['Fixation Diameter (deg)']), self.viewing_distance_cm,
+            self.monitor_width_cm, self.win_sub.size[0])
         self.reward_len_s = float(params["Reward Length (s)"])
         self.iti_s = float(params["ITI (s)"])
         self.timeout_s = float(params["Timeout (s)"])
@@ -367,28 +418,29 @@ class FixationMovingBarTask:
             calculate_scan_geometry(
                 "Right",
                 range_deg,
-                self.bar_width_by_range[range_deg],
+                self.bar_width_by_range[range_deg][0],
                 self.viewing_distance_cm,
                 self.monitor_width_cm,
                 self.monitor_height_cm,
                 self.win_sub.size[0],
                 self.win_sub.size[1],
+                self.fixation_pos,
             )
 
     def _build_static_visuals(self):
         self.fix_sub = visual.Circle(
             self.win_sub,
-            radius=2,
+            radius=self.fixation_diameter_px / 2,
             fillColor="white",
             lineColor="white",
-            pos=(0, 0),
+            pos=self.fixation_pos,
         )
         self.fix_ctl = visual.Circle(
             self.win_ctl,
-            radius=2 * self.scale_x,
+            radius=self.fixation_diameter_px / 2 * self.scale_x,
             fillColor="green",
             lineColor="green",
-            pos=(0, 0),
+            pos=(self.fixation_pos[0] * self.scale_x, self.fixation_pos[1] * self.scale_y),
         )
         self.fix_window_ctl = visual.Circle(
             self.win_ctl,
@@ -396,13 +448,13 @@ class FixationMovingBarTask:
             fillColor=None,
             lineColor="red",
             lineWidth=2,
-            pos=(0, 0),
+            pos=(self.fixation_pos[0] * self.scale_x, self.fixation_pos[1] * self.scale_y),
         )
 
     def _prepare_bar(self, condition):
         range_deg = float(condition["range_deg"])
         direction = condition["direction"]
-        bar_width_deg = self.bar_width_by_range[range_deg]
+        bar_width_deg = condition.get("bar_width_deg", self.bar_width_by_range[range_deg][0])
         geometry = calculate_scan_geometry(
             direction,
             range_deg,
@@ -412,6 +464,7 @@ class FixationMovingBarTask:
             self.monitor_height_cm,
             self.win_sub.size[0],
             self.win_sub.size[1],
+            self.fixation_pos,
         )
 
         self.bar_sub = visual.Rect(
@@ -466,7 +519,9 @@ class FixationMovingBarTask:
 
     def _mark_time(self, trial_data, field):
         if trial_data[field] is None:
-            trial_data[field] = self.now()
+            trial_data[field] = self._flip_session_time
+            if field == "Time_DrawFinish":
+                trial_data["Time_TrialStart"] = trial_data[field]
             tracker_event = {
                 "Time_DrawFinish": "FIX_ON",
                 "Time_BarOn": "BAR_ON",
@@ -475,25 +530,31 @@ class FixationMovingBarTask:
             }.get(field)
             if tracker_event is not None:
                 self._send_tracker_event(
-                    f"{tracker_event} TRIAL {trial_data['Trial']}"
+                    f"{tracker_event} TRIAL {trial_data['Trial']}", trial_data[field]
                 )
 
-    def _send_tracker_event(self, message):
+    def _send_tracker_event(self, message, at=None):
+        at = self.now() if at is None else at
+        self.events.append({"event": message, "time": at})
         if self.tracker_backend is not None:
-            self.tracker_backend.send_event(message)
+            # Data Viewer variables must retain their exact values.
+            self.tracker_backend.send_event(message if message.startswith("!V ")
+                else f"{message} SESSION_TIME {at:.9f}")
 
     def _schedule_flip_time(self, trial_data, field):
         if trial_data[field] is None:
-            self.win_sub.callOnFlip(self._mark_time, trial_data, field)
+            self._pending_marks.append((trial_data, field))
 
     def _poll_commands(self):
         keys = event.getKeys()
         if "escape" in keys:
+            self.quit_requested = True
+        if self.quit_requested and not self._finishing_code:
             raise TaskAbort()
         return "n" in keys
 
     def _gaze_in_fixation(self, gaze):
-        return bool(gaze["valid"]) and math.hypot(gaze["x"], gaze["y"]) <= (
+        return bool(gaze["valid"]) and math.hypot(gaze["x"] - self.fixation_pos[0], gaze["y"] - self.fixation_pos[1]) <= (
             self.fix_radius
         )
 
@@ -512,7 +573,25 @@ class FixationMovingBarTask:
             with self.dropped_samples.get_lock():
                 self.dropped_samples.value += 1
 
-    def _present_frame(self, fix_visible, bar_visible):
+    def _on_flip(self, marks, edge, label):
+        self._flip_session_time = self.now()
+        for trial_data, field in marks:
+            self._mark_time(trial_data, field)
+        if edge:
+            trial = self.current_trial["Trial"] if self.current_trial else 0
+            self._send_tracker_event(f"PD_{label}_{edge} TRIAL {trial}", self._flip_session_time)
+            if self.current_trial and label == "BAR":
+                field = "Time_PDOn" if edge == "ON" else "Time_PDOff"
+                self.current_trial[field] = self._flip_session_time
+
+    def _read_gaze(self):
+        gaze = self.gaze_renderer.update()
+        self._log_simulated_gaze(gaze)
+        return gaze
+
+    def _present_frame(self, fix_visible, bar_visible, gaze=None):
+        if gaze is None:
+            gaze = self._read_gaze()
         if fix_visible:
             self.fix_sub.draw()
             self.fix_ctl.draw()
@@ -522,12 +601,46 @@ class FixationMovingBarTask:
             self.bar_ctl.draw()
             self.scan_window_ctl.draw()
 
-        gaze = self.gaze_renderer.update_and_draw()
-        self.win_sub.flip()
+        self.gaze_renderer.draw()
+        white, edge, label = self.pulse.next_frame(bar_visible, "BAR")
+        self.pd.fillColor = self.pd.lineColor = (255, 255, 255) if white else (0, 0, 0)
+        self.pd.draw()  # Draw last: stimulus motion must never contaminate the code.
+        marks, self._pending_marks = self._pending_marks, []
+        self.win_sub.callOnFlip(self._on_flip, marks, edge, label)
+        flip = self.win_sub.flip()
+        interval = None if self._previous_flip is None else flip - self._previous_flip
+        self.frames.append({"frame": len(self.frames), "session_time": self._flip_session_time,
+            "flip_clock_time": flip, "interval_s": interval, "pd_white": white,
+            "pd_code": label, "trial": self.current_trial["Trial"] if self.current_trial else 0,
+            "bar_visible": bar_visible,
+            "bar_pos": list(self.bar_sub.pos) if bar_visible else None,
+            "late": interval is not None and interval > 1.5 * self.nominal_period})
+        self._previous_flip = flip
         self.win_ctl.flip()
-        self._log_simulated_gaze(gaze)
         pause_requested = self._poll_commands()
         return gaze, pause_requested
+
+    def _decision(self, trial_data, status, phase=""):
+        at = self.now()
+        trial_data["Status"] = status
+        trial_data["Break_Phase"] = phase
+        trial_data["Time_End"] = at
+        trial_data[{"Break": "Time_Break", "NoFix": "Time_NoFix",
+                    "Success": "Time_Success"}[status]] = at
+        self._send_tracker_event(f"{status.upper()} TRIAL {trial_data['Trial']}", at)
+
+    def _finish_code(self, trial_data=None, duration=0):
+        start = self.now()
+        previous = self._finishing_code
+        self._finishing_code = True
+        try:
+            while self.pulse.busy or (not self.quit_requested and self.now() - start < duration):
+                if trial_data is None:
+                    self._present_frame(False, False)
+                else:
+                    self._black_out(trial_data)
+        finally:
+            self._finishing_code = previous
 
     def _black_out(self, trial_data):
         if trial_data["Time_DrawFinish"] is not None:
@@ -538,57 +651,66 @@ class FixationMovingBarTask:
 
     def _wait_for_fixation(self, trial_data):
         candidate_start = None
-        wait_start = self.now()
+        wait_start = trial_data["Time_DrawFinish"]
         pause_requested = False
 
         while self.now() - wait_start < self.wait_time_s:
-            gaze, requested = self._present_frame(True, False)
-            pause_requested = pause_requested or requested
+            gaze = self._read_gaze()
             detected_at = self.now()
             if self._gaze_in_fixation(gaze):
                 if candidate_start is None:
                     candidate_start = detected_at
                 elif detected_at - candidate_start >= self.fix_acquire_s:
                     trial_data["Time_GazeEnter"] = candidate_start
+                    trial_data["Time_FixAcquired"] = detected_at
                     self._send_tracker_event(
-                        f"GAZE_ACQUIRED TRIAL {trial_data['Trial']}"
+                        f"FIX_ACQUIRED TRIAL {trial_data['Trial']}", detected_at
                     )
                     return candidate_start, pause_requested
             else:
                 candidate_start = None
+            _, requested = self._present_frame(True, False, gaze)
+            pause_requested = pause_requested or requested
+        self._decision(trial_data, "NoFix", "Acquire")
         return None, pause_requested
 
     def _hold_before_bar(self, fixation_start):
         pause_requested = False
         while self.now() - fixation_start < self.bar_on_delay_s:
-            gaze, requested = self._present_frame(True, False)
-            pause_requested = pause_requested or requested
+            gaze = self._read_gaze()
             if not self._gaze_in_fixation(gaze):
+                self._decision(self.current_trial, "Break", "PreBar")
                 return False, pause_requested
+            _, requested = self._present_frame(True, False, gaze)
+            pause_requested = pause_requested or requested
         return True, pause_requested
 
     def _run_bar_motion(self, trial_data, geometry):
         pause_requested = False
         self._set_bar_progress(geometry, 0.0)
-        self._schedule_flip_time(trial_data, "Time_BarOn")
-        gaze, requested = self._present_frame(True, True)
-        pause_requested = pause_requested or requested
+        gaze = self._read_gaze()
         if not self._gaze_in_fixation(gaze):
+            self._decision(trial_data, "Break", "PreBar")
             return False, pause_requested
+        self._schedule_flip_time(trial_data, "Time_BarOn")
+        _, requested = self._present_frame(True, True, gaze)
+        pause_requested = pause_requested or requested
 
         bar_on_time = trial_data["Time_BarOn"]
         while self.now() - bar_on_time < self.bar_duration_s:
+            gaze = self._read_gaze()
+            if not self._gaze_in_fixation(gaze):
+                self._decision(trial_data, "Break", "BarMotion")
+                return False, pause_requested
             progress = (self.now() - bar_on_time) / self.bar_duration_s
             self._set_bar_progress(geometry, progress)
-            gaze, requested = self._present_frame(True, True)
+            _, requested = self._present_frame(True, True, gaze)
             pause_requested = pause_requested or requested
-            if not self._gaze_in_fixation(gaze):
-                return False, pause_requested
-
-        self._schedule_flip_time(trial_data, "Time_BarOff")
-        self._schedule_flip_time(trial_data, "Time_FixationPointOff")
-        _, requested = self._present_frame(False, False)
-        return True, pause_requested or requested
+        if not self._gaze_in_fixation(self._read_gaze()):
+            self._decision(trial_data, "Break", "BarMotion")
+            return False, pause_requested
+        self._decision(trial_data, "Success")
+        return True, pause_requested
 
     def _new_trial_data(
         self, trial_number, block_number, trial_in_block, condition, geometry
@@ -609,7 +731,7 @@ class FixationMovingBarTask:
             "Time_Reward": None,
             "Time_End": None,
             "Subject_ID": self.subject_id,
-            "Fixation_Position": "(0, 0)",
+            "Fixation_Position": str(self.fixation_pos),
             "Fix_Window_Radius": self.fix_radius,
             "Wait_Time_s": self.wait_time_s,
             "Fixation_Acquire_Time_ms": self.fix_acquire_s * 1000.0,
@@ -618,7 +740,7 @@ class FixationMovingBarTask:
             "Direction": condition["direction"],
             "Range_deg": range_deg,
             "Bar_Length_deg": range_deg,
-            "Bar_Width_deg": self.bar_width_by_range[range_deg],
+            "Bar_Width_deg": condition.get("bar_width_deg", self.bar_width_by_range[range_deg][0]),
             "Bar_Opacity": self.bar_opacity,
             "Bar_Motion_Duration_s": self.bar_duration_s,
             "Bar_Start_X_pix": geometry["start_x"],
@@ -636,9 +758,34 @@ class FixationMovingBarTask:
             "ITI_s": self.iti_s,
             "Timeout_s": self.timeout_s,
             "Random_Seed": self.random_seed,
+            **dict.fromkeys(SYNC_TIME_FIELDS),
+            "Session_T0_PerfCounter": self.session_t0,
+            "Session_T0_UTC": self.session_utc,
+            "Parameters_JSON": json.dumps(self.task_manager.exp_params, ensure_ascii=False),
         }
 
     def _run_one_trial(
+        self, trial_number, block_number, trial_in_block, condition
+    ):
+        try:
+            return self._run_trial_body(trial_number, block_number, trial_in_block, condition)
+        except TaskAbort:
+            trial = self.current_trial
+            if trial is not None:
+                if trial["Status"] is None:
+                    trial["Status"] = "Aborted"
+                    trial["Time_End"] = self.now()
+                    self._send_tracker_event(f"TRIAL_ABORT TRIAL {trial_number}", trial["Time_End"])
+                self._finishing_code = True
+                try:
+                    self._black_out(trial)
+                    self._finish_code(trial)
+                finally:
+                    self._finishing_code = False
+                    self._write_trial(trial)
+            raise
+
+    def _run_trial_body(
         self, trial_number, block_number, trial_in_block, condition
     ):
         geometry = self._prepare_bar(condition)
@@ -649,12 +796,12 @@ class FixationMovingBarTask:
             condition,
             geometry,
         )
+        self.current_trial = trial_data
         event.clearEvents()
         self.gaze_renderer.reset_trail()
         self._send_tracker_event(f"TRIALID {trial_number}")
 
         self.arduino.trial_start()
-        trial_data["Time_TrialStart"] = self.now()
         self._schedule_flip_time(trial_data, "Time_DrawFinish")
         _, pause_requested = self._present_frame(True, False)
 
@@ -678,24 +825,35 @@ class FixationMovingBarTask:
                     status = "Success"
                 else:
                     status = "Break"
-                    trial_data["Break_Phase"] = "BarMotion"
+
+        self._send_tracker_event(f"TRIAL_RESULT {status}", trial_data["Time_End"])
+        # Remove the bar and turn the photodiode black on the same subject flip,
+        # before reward audio can block the main thread.
+        self._finishing_code = True
+        try:
+            self._black_out(trial_data)
+        finally:
+            self._finishing_code = False
+        self._finish_code(trial_data)
 
         if status == "Success":
             self.arduino.trial_success()
             trial_data["Time_Reward"] = self.now()
-            self._send_tracker_event(f"REWARD TRIAL {trial_number}")
             self.arduino.reward(int(self.reward_len_s * 1000.0))
         elif status == "Break":
-            self._black_out(trial_data)
             self.arduino.trial_break()
-            core.wait(self.timeout_s)
         else:
-            self._black_out(trial_data)
             self.arduino.trial_nofix()
+
+        self._finishing_code = True
+        try:
+            self._black_out(trial_data)
+            self._finish_code(trial_data, self.timeout_s if status == "Break" else 0)
+        finally:
+            self._finishing_code = False
 
         self.arduino.trial_end()
         trial_data["Status"] = status
-        trial_data["Time_End"] = self.now()
         self._send_tracker_event(f"!V TRIAL_VAR Status {status}")
         self._send_tracker_event(
             f"!V TRIAL_VAR Direction {trial_data['Direction']}"
@@ -703,7 +861,6 @@ class FixationMovingBarTask:
         self._send_tracker_event(
             f"!V TRIAL_VAR Range_deg {trial_data['Range_deg']}"
         )
-        self._send_tracker_event(f"TRIAL_RESULT {status}")
         return trial_data, pause_requested
 
     def _write_trial(self, trial_data):
@@ -716,6 +873,7 @@ class FixationMovingBarTask:
                 csv_row[field] = f"{value:.6f}"
         self.behavior_log.append(trial_data.copy())
         self.trial_logger.write(csv_row)
+        self.current_trial = None
 
     def _run_iti(self):
         iti_start = self.now()
@@ -727,19 +885,30 @@ class FixationMovingBarTask:
 
     def _prompt_and_update(self):
         self._present_frame(False, False)
-        if not self.task_manager.prompt_for_parameters():
+        if self.task_manager.prompt_for_runtime_parameters(
+            disabled_parameters={'Total Blocks', 'Bar Width for 4deg (deg)', 'Bar Width for 20deg (deg)'},
+            notice='Block count and width conditions are fixed for this session.',
+        ) != 'confirm':
             raise TaskAbort()
         self.update_params()
         event.clearEvents()
+        self._previous_flip = None
 
     def run_task(self):
-        if not self.task_manager.prompt_for_parameters():
+        if (not getattr(self.task_manager, "session_parameters_confirmed", False)
+                and not self.task_manager.prompt_for_parameters()):
             raise TaskAbort()
         self.update_params()
         event.clearEvents()
+        for _ in range(5):
+            self._present_frame(False, False)
+        self.pulse.start("TASK_START")
+        self._finish_code()
+        if self.quit_requested:
+            raise TaskAbort()
 
         print("\n=== Fixation Moving-Bar Task started ===")
-        print("Each block contains 4 directions x 2 ranges in random order.")
+        print(parameter_summary(self.task_manager.exp_params))
         print("Press Esc to quit; press N to edit parameters before the next trial.")
 
         trial_number = 1
@@ -747,12 +916,17 @@ class FixationMovingBarTask:
         success_count = 0
         pause_requested = False
 
-        while True:
+        # Freeze the planned counts/widths for this session, including retries.
+        planned_blocks = self.total_blocks
+        planned_widths = {r: list(w) for r, w in self.bar_width_by_range.items()}
+        while block_number < planned_blocks:
             block_number += 1
-            block_conditions = make_condition_block(self.rng)
+            block_conditions = make_condition_block(self.rng, planned_widths)
             print(f"\n=== Block {block_number} ===")
 
-            for trial_in_block, condition in enumerate(block_conditions, 1):
+            trial_in_block = 1
+            while trial_in_block <= len(block_conditions):
+                condition = block_conditions[trial_in_block - 1]
                 if pause_requested:
                     self._prompt_and_update()
                     pause_requested = False
@@ -762,8 +936,9 @@ class FixationMovingBarTask:
 
                 print(
                     f"\n--- Trial {trial_number} "
-                    f"(block {block_number}, {trial_in_block}/8): "
-                    f"{condition['range_deg']:g}deg {condition['direction']} ---"
+                    f"(block {block_number}/{planned_blocks}, {trial_in_block}/{len(block_conditions)}): "
+                    f"{condition['range_deg']:g}deg {condition['direction']} "
+                    f"width={condition['bar_width_deg']:g}deg ---"
                 )
                 trial_data, requested = self._run_one_trial(
                     trial_number,
@@ -772,23 +947,39 @@ class FixationMovingBarTask:
                     condition,
                 )
                 self._write_trial(trial_data)
+                if self.quit_requested:
+                    raise TaskAbort()
                 pause_requested = pause_requested or requested
 
                 if trial_data["Status"] == "Success":
                     success_count += 1
+                    trial_in_block += 1
                 print(
                     f"Result: {trial_data['Status']} "
                     f"(success {success_count}/{trial_number})"
                 )
                 trial_number += 1
+        print(f"Completed {planned_blocks} blocks: {success_count} successes in {trial_number - 1} attempts.")
 
     def close(self):
-        self.trial_logger.close()
-        self.arduino.close()
+        try:
+            if self.current_trial is not None:
+                if self.current_trial["Status"] is None:
+                    self.current_trial["Status"] = "Error"
+                    self.current_trial["Time_End"] = self.now()
+                self._write_trial(self.current_trial)
+        finally:
+            self.trial_logger.close()
+            try:
+                for name, rows in (("events.json", self.events), ("frames.json", self.frames)):
+                    with open(os.path.join(self.save_dir, name), "w", encoding="utf-8") as stream:
+                        json.dump(rows, stream, ensure_ascii=False, indent=2)
+            finally:
+                self.arduino.close()
 
 
-def create_session_dir(script_dir):
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+def create_session_dir(script_dir, subject_id="Unknown"):
+    timestamp = subject_filename(subject_id) + "_" + datetime.now().strftime("%Y%m%d_%H%M%S")
     base = os.path.join(
         script_dir, "experiment_logs", f"FixationMovingBar_{timestamp}"
     )
@@ -798,15 +989,35 @@ def create_session_dir(script_dir):
         candidate = f"{base}_{suffix:03d}"
         suffix += 1
     os.makedirs(candidate)
-    return timestamp, candidate
+    return timestamp + candidate[len(base):], candidate
 
 
 def main(tracker_mode="qy"):
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    session_timestamp, save_dir = create_session_dir(script_dir)
+    task_manager = FineVision_Notebook(task_name="FixationMovingBar", default_params=DEFAULT_PARAMS,
+        parameter_validator=validate_params, parameter_summary_provider=parameter_summary)
+    # Saved scalars/arrays must become text: lists in this UI mean dropdowns.
+    for r in RANGES_DEG:
+        key = f"Bar Width for {r:g}deg (deg)"
+        value = task_manager.exp_params[key]
+        if not isinstance(value, str):
+            task_manager.exp_params[key] = json.dumps(value)
+    if not confirm_session_parameters(task_manager):
+        return
+    validate_params(task_manager.exp_params)
+    session_timestamp, save_dir = create_session_dir(script_dir, task_manager.exp_params["Subject ID"])
     session_t0 = time.perf_counter()
+    session_utc = datetime.now(timezone.utc).isoformat()
+    metadata = {"session_id": session_timestamp, "session_t0_perf_counter": session_t0,
+        "session_t0_utc_approx": session_utc, "parameters": dict(task_manager.exp_params),
+        "photodiode_protocol": DisplaySync.SPEC, "photodiode_size_px": 80,
+        "photodiode_inset_px": 10,
+        "time_units": "seconds relative to session_t0_perf_counter",
+        "sync_note": "EDF uses tracker time; SESSION_ZERO declares the PC origin. CLOCK_SYNC receipt includes transport latency."}
+    with open(os.path.join(save_dir, "session.json"), "w", encoding="utf-8") as stream:
+        json.dump(metadata, stream, ensure_ascii=False, indent=2)
 
-    save_gaze_csv = str(tracker_mode).lower() != "eyelink"
+    save_gaze_csv = bool(IS_SIMULATING) or str(tracker_mode).lower() != "eyelink"
     gaze_log_queue = Queue(maxsize=20000) if save_gaze_csv else None
     dropped_samples = Value("i", 0)
     gaze_writer = None
@@ -836,6 +1047,8 @@ def main(tracker_mode="qy"):
             dropped_samples=dropped_samples,
         )
         gaze_source = tracker_runtime.gaze_source
+        tracker_runtime.send_event(f"SESSION_ZERO PERF_COUNTER {session_t0:.9f} UTC {session_utc}")
+        tracker_runtime.send_event(f"CLOCK_SYNC SESSION_TIME {time.perf_counter() - session_t0:.9f}")
 
         win_subject = visual.Window(
             screen=MONITOR_ID_SUBJECT,
@@ -856,10 +1069,6 @@ def main(tracker_mode="qy"):
             title=f"Fixation Moving-Bar Control View ({tracker_runtime.mode})",
         )
 
-        task_manager = FineVision_Notebook(
-            task_name="FixationMovingBar",
-            default_params=DEFAULT_PARAMS,
-        )
         task = FixationMovingBarTask(
             win_subject,
             win_control,
@@ -872,7 +1081,9 @@ def main(tracker_mode="qy"):
             gaze_log_queue,
             dropped_samples,
             tracker_runtime,
+            session_utc=session_utc,
         )
+        metadata["nominal_frame_period_s"] = task.nominal_period
         print(f"[Session] Tracker: {tracker_runtime.mode}")
         print(f"[Session] Logs: {save_dir}")
         task.run_task()
@@ -883,6 +1094,12 @@ def main(tracker_mode="qy"):
         print(f"Fixation moving-bar task error: {exc}")
         traceback.print_exc()
     finally:
+        metadata["session_end_time"] = time.perf_counter() - session_t0
+        try:
+            with open(os.path.join(save_dir, "session.json"), "w", encoding="utf-8") as stream:
+                json.dump(metadata, stream, ensure_ascii=False, indent=2)
+        except Exception:
+            traceback.print_exc()
         if task is not None:
             try:
                 task.close()
@@ -891,7 +1108,10 @@ def main(tracker_mode="qy"):
 
         if tracker_runtime is not None:
             try:
-                tracker_runtime.close()
+                try:
+                    tracker_runtime.send_event(f"CLOCK_SYNC SESSION_TIME {time.perf_counter() - session_t0:.9f}")
+                finally:
+                    tracker_runtime.close()
             except Exception:
                 traceback.print_exc()
 

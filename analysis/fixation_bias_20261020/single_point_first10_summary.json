@@ -1,0 +1,29 @@
+{
+  "method": "Median X/Y of per-fixation median GAZE positions; translate only. First ten actual attempts, all completed fixation.",
+  "subtract_dx_right_px": 27.953256366972298,
+  "subtract_dy_up_px": 38.67485640377558,
+  "first10_before": {
+    "n": 10,
+    "median_distance_px": 47.83652203529731,
+    "mean_distance_px": 50.775747880507524,
+    "p90_distance_px": 63.59548323025612
+  },
+  "first10_after_in_sample": {
+    "n": 10,
+    "median_distance_px": 6.073285910589518,
+    "mean_distance_px": 9.684657934588786,
+    "p90_distance_px": 18.366281992050446
+  },
+  "later_completed_before": {
+    "n": 618,
+    "median_distance_px": 49.92124473319255,
+    "mean_distance_px": 50.20696351926633,
+    "p90_distance_px": 65.36039355070567
+  },
+  "later_completed_after_held_out": {
+    "n": 618,
+    "median_distance_px": 11.657783999842138,
+    "mean_distance_px": 13.56178291310569,
+    "p90_distance_px": 24.79578070430138
+  }
+}

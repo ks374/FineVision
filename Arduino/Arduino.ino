@@ -3,8 +3,18 @@ const int pumpVoltagePin = 5;  // PWM (调节速度，尚未实装，感觉用�
 const int pumpEnablePin = 6;   // 开关引脚 (假设 LOW 打开，HIGH 关闭)
 const int pumpDirPin = 7;      // 方向引脚
 const int pumptap = 12;        // 脚踏开关输入引脚
+const int buzzerPin = 3 ;      // 无源蜂鸣器
 
+//电脑提示音参数
+const unsigned int buzzerFrequency = 500; //电脑音频Hz
+const unsigned long buzzerOnTime = 30;     // 每声持续时间，ms
+const unsigned long buzzerOffTime = 35;    // 两声间隔，ms
+const byte buzzerBeepCount = 3;            // “滴滴滴”三声
 
+bool buzzerSequenceActive = false;
+bool buzzerIsOn = false;
+byte buzzerCurrentCount = 0;
+unsigned long buzzerPhaseEndTime = 0;
 
 // 非阻塞计时器变量
 unsigned long pumpEndTime = 0;
@@ -19,25 +29,68 @@ bool lastTapState = LOW;
 
 void setup() {
   Serial.begin(115200);
-  
+
   // 初始化水泵引脚
   pinMode(pumpVoltagePin, OUTPUT);
   pinMode(pumpEnablePin, OUTPUT);
   pinMode(pumpDirPin, OUTPUT);
   pinMode(pumptap, INPUT);      // 脚踏开关：输入模式
 
-  
+
   // 默认关闭水泵 (假设 HIGH 为关)
   digitalWrite(pumpEnablePin, HIGH);
   analogWrite(pumpVoltagePin, 98); // 设置转速满
   digitalWrite(pumpDirPin, LOW);    // 正向
-  
+
   // 🌟 核心：把 Arduino Uno 的 8, 9, 10, 11 引脚设为输出模式
   // 它们对应底层寄存器 PORTB 的最低 4 位。
   // 这几根线用来连到 SpikeGadgets 的 Digital IN！
   DDRB = DDRB | B00001111; 
   PORTB = PORTB & B11110000; // 初始电平全部拉低
+
+
+  //初始化蜂鸣器
+  pinMode(buzzerPin,OUTPUT);
+  noTone(buzzerPin);     //确保启动时不响
+  digitalWrite(buzzerPin, LOW);
 }
+
+void startBuzzerSequence() {
+  buzzerSequenceActive = true;
+  buzzerIsOn = true;
+  buzzerCurrentCount = 1;
+
+  tone(buzzerPin, buzzerFrequency);
+  buzzerPhaseEndTime = millis() + buzzerOnTime;
+}
+
+//新增
+void updateBuzzerSequence() {
+  if (!buzzerSequenceActive) return;
+
+  if ((long)(millis() - buzzerPhaseEndTime) < 0) return;
+
+  if (buzzerIsOn) {
+    // 当前这一声结束
+    noTone(buzzerPin);
+    digitalWrite(buzzerPin, LOW); // 明确拉低，保证静音
+    buzzerIsOn = false;
+
+    if (buzzerCurrentCount >= buzzerBeepCount) {
+      buzzerSequenceActive = false;  // 三声已完成
+    } else {
+      buzzerPhaseEndTime = millis() + buzzerOffTime;
+    }
+  } else {
+    // 静音间隔结束，开始下一声
+    buzzerCurrentCount++;
+    tone(buzzerPin, buzzerFrequency);
+    buzzerIsOn = true;
+    buzzerPhaseEndTime = millis() + buzzerOnTime;
+  }
+}
+
+
 
 void loop() {
   // 1. 极速读取串口数据
@@ -57,7 +110,8 @@ void loop() {
       delayMicroseconds(1000);
       PORTB &= B11110111;
     }
-    
+
+
     // =====================================
     // 参数通道 (Pump Control)
     // =====================================
@@ -68,10 +122,13 @@ void loop() {
       byte highByte = Serial.read();
       byte lowByte = Serial.read();
       byte speed = Serial.read(); // 新增：读取转速 (0=0V, 255=5V)
-      
+
       // 拼凑出我们要的毫秒数
       unsigned int duration = (highByte << 8) | lowByte;
-      
+
+      // 电脑给出 reward 时，同步播放“滴滴滴”
+      startBuzzerSequence();
+
       // 开启水泵 (非阻塞！)
       //analogWrite(pumpVoltagePin, speed); // 1. 设置转速 (0-5V)
       digitalWrite(pumpDirPin, LOW);      // 2. 顺时针 (正向)
@@ -79,7 +136,7 @@ void loop() {
       pumpEndTime = millis() + duration;
       isPumping = true;
     }
-    
+
     else if (cmd == 129) { // 129: Drain 排水
       pedalRewardPending = false;
       while (Serial.available() < 3) {}
@@ -87,7 +144,7 @@ void loop() {
       byte low = Serial.read();
       byte speed = Serial.read(); // 读取转速
       unsigned int duration = (high << 8) | low;
-      
+
       // 反向水泵
       //analogWrite(pumpVoltagePin, speed); // 1. 设置转速 (0-5V)
       digitalWrite(pumpDirPin, HIGH);     // 2. 逆时针 (反向)
@@ -95,7 +152,7 @@ void loop() {
       pumpEndTime = millis() + duration;
       isPumping = true;
     }
-    
+
     else if (cmd == 130) { // 130: 紧急停止
       pedalRewardPending = false;
       digitalWrite(pumpEnablePin, HIGH);  // 关闭使能
@@ -103,6 +160,8 @@ void loop() {
       isPumping = false;
     }
   }
+
+   updateBuzzerSequence();
 
   // 2. 🌟 非阻塞检查：水泵是否到时间该关了？
   // 因为没有用 delay()，所以在这个检查期间，Arduino 可以随时回去接收 TTL 信号！
@@ -129,10 +188,11 @@ void loop() {
   if (currentTapState == HIGH && lastTapState == LOW) {
     if (!isPumping && !pedalRewardPending) {
       Serial.println("Pressed");
-      pedalRewardStartTime = millis() + 300;
+      startBuzzerSequence();      // Arduino 同时发出“滴滴滴”三声
+
+      pedalRewardStartTime = millis() + 300;  //原有300ms后给水
       pedalRewardPending = true;
     }
   }
   lastTapState = currentTapState;
-} 
-
+}

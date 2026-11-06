@@ -36,6 +36,8 @@ class CalibrationManager:
         max_wait_time_s=5.0,
         iti_s=3.0,
         reward_ms=300,
+        sample_duration_s=CALIBRATION_TAIL_SAMPLE_DURATION_S,
+        minimum_samples=MIN_CALIBRATION_TAIL_SAMPLES,
     ):
         self.win_sub = subject_win
         self.win_ctl = control_win
@@ -56,9 +58,13 @@ class CalibrationManager:
         self.max_wait_time_s = float(max_wait_time_s)
         self.iti_s = float(iti_s)
         self.reward_ms = int(reward_ms)
-        if self.fixation_duration_s < CALIBRATION_TAIL_SAMPLE_DURATION_S:
+        self.sample_duration_s = float(sample_duration_s)
+        self.minimum_samples = int(minimum_samples)
+        if self.sample_duration_s <= 0 or self.minimum_samples < 3:
+            raise ValueError("Sampling duration must be positive; minimum samples >= 3.")
+        if self.fixation_duration_s < self.sample_duration_s:
             raise ValueError(
-                "Fixation duration must be at least the 100-ms sampling tail."
+                "Fixation duration must be at least the sampling duration."
             )
         if self.max_wait_time_s <= 0 or self.iti_s < 0:
             raise ValueError(
@@ -142,6 +148,7 @@ class CalibrationManager:
                 "index": index,
                 "target_px": [float(target[0]), float(target[1])],
                 "target_deg": spec.get("target_deg"),
+                "weight": float(spec.get("weight", 1.0)),
                 "region": spec["region"],
             }
             for index, (target, spec) in enumerate(
@@ -151,14 +158,14 @@ class CalibrationManager:
         self.stim_target = visual.Circle(
             self.win_sub,
             radius=self.fixation_point_radius_px,
-            fillColor='green',
-            lineColor='green',
+            fillColor='white',
+            lineColor='white',
         )
         self.ctl_target = visual.Circle(
             self.win_ctl,
             radius=self.fixation_point_radius_px * self.scale_x,
-            fillColor='green',
-            lineColor='green',
+            fillColor='white',
+            lineColor='white',
         )
         #self.ctl_gaze = visual.Circle(self.win_ctl, radius=5, fillColor='yellow', opacity=0.8)
         self.tail_line = visual.ShapeStim(
@@ -169,6 +176,18 @@ class CalibrationManager:
             lineColor='yellow',
             opacity=0.6
         )
+
+    def _wait_with_gaze(self, duration_s):
+        """Keep live operator gaze visible between trials; no subject target."""
+        clock = core.Clock()
+        while clock.getTime() < duration_s:
+            self.win_sub.flip()
+            self.gaze_renderer.update_and_draw()
+            self.win_ctl.flip()
+            if "escape" in event.getKeys(keyList=["escape"]):
+                self.calibration_report["status"] = "aborted"
+                return False
+        return True
 
     @staticmethod
     def _generate_quadrant_targets(screen_size, random_seed):
@@ -278,7 +297,7 @@ class CalibrationManager:
         point_total=None,
         attempt=None,
     ):
-        """Collect unique raw samples over the final 100 ms of fixation."""
+        """Collect unique raw samples over the configurable fixation tail."""
         samples = []
         sample_records = []
         last_timestamp = None
@@ -303,7 +322,8 @@ class CalibrationManager:
             }
             return None
 
-        while sampling_clock.getTime() < CALIBRATION_TAIL_SAMPLE_DURATION_S:
+        duration = getattr(self, "sample_duration_s", CALIBRATION_TAIL_SAMPLE_DURATION_S)
+        while sampling_clock.getTime() < duration:
             calibrated_gaze = self.shared_data.get_latest_cal()
             if not calibrated_gaze["valid"]:
                 return abort_collection("INVALID_GAZE")
@@ -335,13 +355,13 @@ class CalibrationManager:
                 last_timestamp = timestamp
 
             remaining = (
-                CALIBRATION_TAIL_SAMPLE_DURATION_S
+                duration
                 - sampling_clock.getTime()
             )
             if remaining > 0:
                 core.wait(min(CALIBRATION_SAMPLE_POLL_INTERVAL_S, remaining))
 
-        if len(samples) < MIN_CALIBRATION_TAIL_SAMPLES:
+        if len(samples) < getattr(self, "minimum_samples", MIN_CALIBRATION_TAIL_SAMPLES):
             return abort_collection("TOO_FEW_SAMPLES")
         first_timestamp = sample_records[0]["tracker_timestamp_s"]
         last_timestamp = sample_records[-1]["tracker_timestamp_s"]
@@ -350,7 +370,7 @@ class CalibrationManager:
             "sample_count": len(samples),
             "tracker_timestamp_start_s": first_timestamp,
             "tracker_timestamp_end_s": last_timestamp,
-            "duration_requested_s": CALIBRATION_TAIL_SAMPLE_DURATION_S,
+            "duration_requested_s": duration,
             "samples": sample_records,
         }
         self._send_tracker_event(
@@ -370,13 +390,16 @@ class CalibrationManager:
         return float(gain), float(offset)
 
     @staticmethod
-    def _fit_affine(raw_x, raw_y, target_x, target_y, fallback):
+    def _fit_affine(raw_x, raw_y, target_x, target_y, fallback, weights=None):
         """Fit one complete 2-D affine mapping for a single eye."""
         fallback = normalize_calibration(fallback)
         raw_x = np.asarray(raw_x, dtype=float)
         raw_y = np.asarray(raw_y, dtype=float)
         target_x = np.asarray(target_x, dtype=float)
         target_y = np.asarray(target_y, dtype=float)
+        weights = np.ones_like(raw_x) if weights is None else np.asarray(weights, dtype=float)
+        if weights.shape != raw_x.shape or not np.all(np.isfinite(weights)) or np.any(weights <= 0):
+            raise ValueError("Point weights must be finite, positive and match the samples.")
         mask = (
             np.isfinite(raw_x)
             & np.isfinite(raw_y)
@@ -388,11 +411,14 @@ class CalibrationManager:
         ))
         if design.shape[0] < 3 or np.linalg.matrix_rank(design) < 3:
             return fallback
+        # sqrt(w) implements sum(w * residual**2), not sum(w**2 * residual**2).
+        sqrt_w = np.sqrt(weights[mask] / np.max(weights[mask]))
+        design = design * sqrt_w[:, None]
         coefficients_x = np.linalg.lstsq(
-            design, target_x[mask], rcond=None
+            design, target_x[mask] * sqrt_w, rcond=None
         )[0]
         coefficients_y = np.linalg.lstsq(
-            design, target_y[mask], rcond=None
+            design, target_y[mask] * sqrt_w, rcond=None
         )[0]
         return {
             "model": "affine_2d",
@@ -435,7 +461,7 @@ class CalibrationManager:
             "max_error_2d_px": float(np.max(distance)),
         }
 
-    def run_calibration(self,default_left_cal,default_right_cal):
+    def run_calibration(self,default_left_cal,default_right_cal, *, apply_result=True):
         """执行 9 点校准流程"""
         collected_data = [] # 存储结构: (target_x, target_y, raw_xl, raw_yl, raw_xr, raw_yr)
         self.calibration_report["status"] = "running"
@@ -478,7 +504,8 @@ class CalibrationManager:
                 attempt += 1
                 event.clearEvents() # 清除旧按键
                 
-                core.wait(iti_time)
+                if not self._wait_with_gaze(iti_time):
+                    return None
 
                 trial_clock = core.Clock()
                 fix_clock = core.Clock()
@@ -524,7 +551,7 @@ class CalibrationManager:
                                 fix_windows_9pt[i].lineColor = 'green'
                             elif fix_clock.getTime() >= (
                                 auto_fix_time
-                                - CALIBRATION_TAIL_SAMPLE_DURATION_S
+                                - self.sample_duration_s
                             ):
                                 samples = self._collect_fixation_tail(
                                     tx,
@@ -541,7 +568,7 @@ class CalibrationManager:
                                     print(
                                         " -> 自动判定成功 "
                                         f"(持续注视 {auto_fix_time:.1f}s；"
-                                        "末尾100ms用于采样)"
+                                        f"末尾{self.sample_duration_s*1000:.0f}ms用于采样)"
                                     )
                                     status = "success"
                                 break
@@ -585,7 +612,7 @@ class CalibrationManager:
                     point_acquired = True
                     print(f" -> Calibration point {i + 1}/{point_total} accepted.")
                     print(
-                        f" -> Final 100 ms contained {len(samples)} "
+                        f" -> Final {self.sample_duration_s*1000:.0f} ms contained {len(samples)} "
                         "unique tracker samples."
                     )
                     if self.arduino is not None:
@@ -607,6 +634,7 @@ class CalibrationManager:
                         "index": i + 1,
                         "target_px": [float(tx), float(ty)],
                         "target_deg": target_spec.get("target_deg"),
+                        "weight": float(target_spec.get("weight", 1.0)),
                         "region": target_spec["region"],
                         "accepted_attempt": attempt,
                         "raw_mean": raw_mean,
@@ -624,7 +652,8 @@ class CalibrationManager:
                     self.win_sub.flip()
                     self.win_ctl.flip()
                     
-                    core.wait(0.8)
+                    if not self._wait_with_gaze(0.8):
+                        return None
                 elif status in ["nofix", "break"]:
                     self._send_tracker_event(
                         f"CAL_POINT_RETRY POINT {i + 1} ATTEMPT {attempt} "
@@ -648,7 +677,13 @@ class CalibrationManager:
                     # 惩罚结束后，while 循环继续，重试当前的第 i 个点
 
         # Step C: 计算并应用
-        (left_cal,right_cal) = self._calculate_and_apply(np.array(collected_data))
+        self.collected_data = np.array(collected_data)
+        self.collected_weights = np.array([float(s.get('weight', 1.0)) for s in self.target_specs])
+        self.calibration_report['fit_weighting'] = 'sum(weight * squared_pixel_error); validation metrics unweighted'
+        if not apply_result:
+            self.calibration_report["status"] = "validation_complete"
+            return default_left_cal, default_right_cal
+        (left_cal,right_cal) = self._calculate_and_apply(self.collected_data)
         self.calibration_report["status"] = "complete"
         return (left_cal,right_cal)
     
@@ -700,7 +735,8 @@ class CalibrationManager:
             while not point_acquired:
                 event.clearEvents()
                 
-                core.wait(iti_time)
+                if not self._wait_with_gaze(iti_time):
+                    return None
 
                 trial_clock = core.Clock()
                 fix_clock = core.Clock()
@@ -737,7 +773,7 @@ class CalibrationManager:
                                 fix_windows_3pt[i].lineColor = 'green'
                             elif fix_clock.getTime() >= (
                                 auto_fix_time
-                                - CALIBRATION_TAIL_SAMPLE_DURATION_S
+                                - self.sample_duration_s
                             ):
                                 samples = self._collect_fixation_tail(
                                     tx,
@@ -841,7 +877,8 @@ class CalibrationManager:
                 self.win_sub.flip()
                 self.win_ctl.flip()
                 
-                core.wait(0.8)  
+                if not self._wait_with_gaze(0.8):
+                    return None
 
         # 调用专属的3点计算函数
         if len(collected_data) == 3:
@@ -984,11 +1021,16 @@ class CalibrationManager:
         left_fallback = self.shared_data.get_calibration_left()
         right_fallback = self.shared_data.get_calibration_right()
 
+        weights = getattr(self, 'collected_weights', None)
+        if getattr(self.shared_data, 'mode', None) == 'eyelink':
+            from CalibrationValidation import require_fit_data
+            require_fit_data(data)
+
         left_cal = self._fit_affine(
-            xl, yl, tx, ty, left_fallback
+            xl, yl, tx, ty, left_fallback, weights=weights
         )
         right_cal = self._fit_affine(
-            xr, yr, tx, ty, right_fallback
+            xr, yr, tx, ty, right_fallback, weights=weights
         )
         self._set_calibration_dict("left", left_cal)
         self._set_calibration_dict("right", right_cal)

@@ -6,6 +6,7 @@ import os
 import time
 import traceback
 from datetime import datetime
+from SessionNaming import subject_filename
 
 from psychopy import core, visual
 
@@ -18,6 +19,8 @@ from FineVision_Notebook import FineVision_Notebook
 from FineVision_Util import ArduinoController
 from Json_manager import update_json
 from eyetracker import create_tracker_runtime
+from CalibrationValidation import write_json, save_mapping, show_validation, require_fit_data
+from CalibrationPoints import DEFAULT_POINTS, normalize_points, edit_points
 
 
 MONITOR_ID_SUBJECT = 1
@@ -36,12 +39,21 @@ DEFAULT_PARAMS = {
     "ITI (s)": 3.0,
     "Reward Duration (ms)": 300,
     "Background Gray Level (0-182)": 5,
-    "Viewing Distance (cm)": 58.0,
+    "Viewing Distance (cm)": 60.0,
     "Subject Monitor Width (cm)": 54.0,
     "Subject Monitor Height (cm)": 30.0,
     "Subject Screen Index": MONITOR_ID_SUBJECT,
     "Control Screen Index": MONITOR_ID_CONTROL,
     "Full Screen": False,
+    "Screen Width (px)": 1920,
+    "Screen Height (px)": 1080,
+    "Control Width (px)": 800,
+    "Control Height (px)": 450,
+    "Sample Rate (Hz)": 1000,
+    "Sample Duration (ms)": 100,
+    "Minimum Samples": 3,
+    "Additional Quadrant Points": False,
+    "Random Seed": 20261020,
 }
 
 
@@ -51,18 +63,22 @@ CALIBRATION_PARAMETER_GROUPS = {
         "Subject Screen Index",
         "Control Screen Index",
         "Full Screen",
+        "Screen Width (px)", "Screen Height (px)",
+        "Control Width (px)", "Control Height (px)",
     ],
     "Calibration / 校准": [
         "Calibration Horizontal Extent (deg)",
         "Calibration Vertical Extent (deg)",
         "Fixation Point Radius (deg)",
         "Fix Window Radius (deg)",
+        "Additional Quadrant Points", "Random Seed",
     ],
     "Timing & Reward / 时间与奖励": [
         "Fixation Duration (ms)",
         "Maximum Wait per Point (s)",
         "ITI (s)",
         "Reward Duration (ms)",
+        "Sample Rate (Hz)", "Sample Duration (ms)", "Minimum Samples",
     ],
     "Display / 屏幕": [
         "Background Gray Level (0-182)",
@@ -102,6 +118,12 @@ def _build_calibration_target_specs(
     distance = float(params["Viewing Distance (cm)"])
     monitor_width = float(params["Subject Monitor Width (cm)"])
     monitor_height = float(params["Subject Monitor Height (cm)"])
+    if "Calibration Points" in params:
+        return [dict(target=(
+            visual_angle_to_pixels(p['x_deg'], distance, monitor_width, screen_size[0]),
+            visual_angle_to_pixels(p['y_deg'], distance, monitor_height, screen_size[1])),
+            target_deg=(p['x_deg'], p['y_deg']), weight=p['weight'], region='custom')
+            for p in normalize_points(params['Calibration Points'])]
     x_extent_deg = float(params["Calibration Horizontal Extent (deg)"])
     y_extent_deg = float(params["Calibration Vertical Extent (deg)"])
     x_extent_px = visual_angle_to_pixels(
@@ -169,13 +191,13 @@ def _calibration_parameter_summary(params):
         params["Calibration Horizontal Extent (deg)"],
         params["Viewing Distance (cm)"],
         params["Subject Monitor Width (cm)"],
-        SCREEN_SIZE[0],
+        int(params.get("Screen Width (px)", 1920)),
     )
     y_px = visual_angle_to_pixels(
         params["Calibration Vertical Extent (deg)"],
         params["Viewing Distance (cm)"],
         params["Subject Monitor Height (cm)"],
-        SCREEN_SIZE[1],
+        int(params.get("Screen Height (px)", 1080)),
     )
     return (
         f"9-point extent: ±{x_px:.1f} px horizontal, ±{y_px:.1f} px vertical\n"
@@ -185,6 +207,15 @@ def _calibration_parameter_summary(params):
 
 
 def _validate_calibration_params(params):
+    for field in ("Screen Width (px)", "Screen Height (px)", "Control Width (px)", "Control Height (px)", "Sample Rate (Hz)", "Sample Duration (ms)"):
+        if not math.isfinite(float(params.get(field, DEFAULT_PARAMS[field]))) or float(params.get(field, DEFAULT_PARAMS[field])) <= 0:
+            raise ValueError(f"{field} must be finite and positive.")
+    if int(params.get("Minimum Samples", 3)) < 3:
+        raise ValueError("Minimum Samples must be at least 3.")
+    if float(params.get("Sample Duration (ms)", 100)) > float(params["Fixation Duration (ms)"]):
+        raise ValueError("Sample Duration must not exceed Fixation Duration.")
+    if int(params.get("Random Seed", 0)) < 0:
+        raise ValueError("Random Seed cannot be negative.")
     positive_fields = (
         "Calibration Horizontal Extent (deg)",
         "Calibration Vertical Extent (deg)",
@@ -196,10 +227,12 @@ def _validate_calibration_params(params):
         "Maximum Wait per Point (s)",
     )
     for field in positive_fields:
-        if float(params[field]) <= 0:
+        if 'Calibration Points' in params and field.startswith('Calibration '):
+            continue
+        if not math.isfinite(float(params[field])) or float(params[field]) <= 0:
             raise ValueError(f"{field} must be positive.")
-    if int(params["Fixation Duration (ms)"]) < 100:
-        raise ValueError("Fixation Duration must be at least 100 ms.")
+    if float(params["Fixation Duration (ms)"]) <= 0:
+        raise ValueError("Fixation Duration must be positive.")
     if float(params["ITI (s)"]) < 0:
         raise ValueError("ITI cannot be negative.")
     if int(params["Reward Duration (ms)"]) < 0:
@@ -210,15 +243,16 @@ def _validate_calibration_params(params):
         raise ValueError("Control Screen Index cannot be negative.")
     load_calibrated_gray_level(params["Background Gray Level (0-182)"])
 
-    target_specs = _build_calibration_target_specs(params, SCREEN_SIZE)
+    screen_size = (int(params.get("Screen Width (px)", 1920)), int(params.get("Screen Height (px)", 1080)))
+    target_specs = _build_calibration_target_specs(params, screen_size)
     point_radius_px = visual_angle_to_pixels(
         params["Fixation Point Radius (deg)"],
         params["Viewing Distance (cm)"],
         params["Subject Monitor Width (cm)"],
-        SCREEN_SIZE[0],
+        screen_size[0],
     )
-    half_width = SCREEN_SIZE[0] / 2.0
-    half_height = SCREEN_SIZE[1] / 2.0
+    half_width = screen_size[0] / 2.0
+    half_height = screen_size[1] / 2.0
     for spec in target_specs:
         x, y = spec["target"]
         if abs(x) + point_radius_px >= half_width:
@@ -283,31 +317,77 @@ def _load_defaults(path, tracker_mode):
     )
 
 
-def main(tracker_mode="qy", quick=False, is_simulating=0):
+def main(tracker_mode="qy", quick=False, is_simulating=0, validation=False):
+    custom_raw = str(tracker_mode).lower() == "eyelink" and not quick
+    # Calibration and validation intentionally share the calibration settings.
+    task_name = "CalibrationTask"
+    point_file = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              f"params_{task_name}_points.json")
+    def validate_parameters(values):
+        checked = dict(DEFAULT_PARAMS, **values)
+        if custom_raw:
+            checked['Calibration Points'] = DEFAULT_POINTS
+        return _validate_calibration_params(checked)
+    dialog_defaults = dict(DEFAULT_PARAMS)
+    if custom_raw:
+        for field in ('Calibration Horizontal Extent (deg)', 'Calibration Vertical Extent (deg)', 'Additional Quadrant Points'):
+            dialog_defaults.pop(field)
     parameter_manager = FineVision_Notebook(
-        task_name="CalibrationTask",
-        default_params=DEFAULT_PARAMS,
+        task_name=task_name,
+        default_params=dialog_defaults,
         parameter_groups=CALIBRATION_PARAMETER_GROUPS,
-        parameter_validator=_validate_calibration_params,
-        parameter_summary_provider=_calibration_parameter_summary,
+        parameter_validator=validate_parameters,
+        parameter_summary_provider=(lambda p: "下一步编辑RAW目标点：X、Y角度与拟合权重。") if custom_raw else _calibration_parameter_summary,
     )
     if not parameter_manager.prompt_for_parameters(
         title="FineVision Calibration Parameters / 校准参数"
     ):
         return None
     params = parameter_manager.exp_params
+    params = dict(DEFAULT_PARAMS, **params)
+    if custom_raw:
+        points = DEFAULT_POINTS
+        if os.path.isfile(point_file):
+            with open(point_file, encoding='utf-8') as handle:
+                points = json.load(handle)['points']
+        points = edit_points(points,
+            lambda ps: _validate_calibration_params(dict(params, **{'Calibration Points': ps})),
+            title='RAW validation points / RAW验证点' if validation else 'RAW calibration points / RAW校准点')
+        if points is None:
+            return None
+        params['Calibration Points'] = points
+        write_json(point_file, dict(points=points))
+        _validate_calibration_params(params)
+    screen_size = (int(params["Screen Width (px)"]), int(params["Screen Height (px)"]))
     gray_background = load_calibrated_gray_level(
         params["Background Gray Level (0-182)"]
     )
     background_color = rgb255_to_psychopy(gray_background["rgb_255"])
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     script_dir = os.path.dirname(os.path.abspath(__file__))
     default_path, task_path, sample_source = _calibration_paths(
-        tracker_mode, timestamp
+        tracker_mode, subject_filename(params["Subject ID"]) + "_" + timestamp
     )
     default_path = os.path.join(script_dir, default_path)
-    task_path = os.path.join(script_dir, task_path)
+    session_id = f"{'Validation' if validation else 'Calibration'}_{subject_filename(params['Subject ID'])}_{timestamp}"
+    log_dir = os.path.join(script_dir, "experiment_logs", session_id)
+    os.makedirs(log_dir, exist_ok=False)
+    task_path = os.path.join(log_dir, "session.json")
+    settings_override = {}
+    if str(tracker_mode).lower() == "eyelink":
+        # These standalone tools always collect RAW, independently of task settings.
+        default_path = os.path.join(script_dir, "eyelink_raw_pupil_setting.json")
+        sample_source = "raw"
+        with open(os.path.join(script_dir, "eyelink_setting.json"), encoding="utf-8") as handle:
+            settings = json.load(handle)
+        settings.update(sample_source="raw", calibration_file=default_path,
+                        sample_rate_hz=int(params["Sample Rate (Hz)"]), active_eye="right")
+        settings_path = os.path.join(log_dir, "tracker_settings.json")
+        write_json(settings_path, settings)
+        settings_override["eyelink_settings_path"] = settings_path
+    default_left, default_right = _load_defaults(default_path, tracker_mode)
+    write_json(os.path.join(log_dir, "mapping_before.json"), dict(default_left_cal=default_left, default_right_cal=default_right))
     update_json(task_path, "Session_start_time", timestamp)
     update_json(task_path, "Tracker", tracker_mode)
     update_json(task_path, "Sample_Source", sample_source)
@@ -323,17 +403,18 @@ def main(tracker_mode="qy", quick=False, is_simulating=0):
         tracker_runtime = create_tracker_runtime(
             tracker_mode,
             is_simulating=bool(is_simulating),
-            session_id=f"Calibration_{timestamp}",
+            session_id=session_id,
             save_dir=os.path.dirname(os.path.abspath(task_path)) or ".",
             session_t0=time.perf_counter(),
-            screen_size=SCREEN_SIZE,
+            screen_size=screen_size,
             qy_sample_rate=100,
+            **settings_override,
         )
         gaze_source = tracker_runtime.gaze_source
 
         win_subject = visual.Window(
             screen=int(params["Subject Screen Index"]),
-            size=list(SCREEN_SIZE),
+            size=list(screen_size),
             fullscr=bool(params["Full Screen"]),
             waitBlanking=True,
             color=background_color,
@@ -343,7 +424,7 @@ def main(tracker_mode="qy", quick=False, is_simulating=0):
         )
         win_control = visual.Window(
             screen=int(params["Control Screen Index"]),
-            size=[800, 450],
+            size=[int(params["Control Width (px)"]), int(params["Control Height (px)"])],
             fullscr=False,
             waitBlanking=False,
             color=background_color,
@@ -357,13 +438,14 @@ def main(tracker_mode="qy", quick=False, is_simulating=0):
         except Exception as exc:
             print(f"Arduino unavailable; calibration continues without reward: {exc}")
 
-        add_quadrant_points = (
-            str(tracker_mode).lower() == "eyelink" and not quick
-        )
-        random_seed = int(timestamp.replace("_", "")) % (2 ** 32)
+        actual_size = tuple(int(value) for value in win_subject.size)
+        if actual_size != screen_size:
+            raise ValueError(f"Actual subject window {actual_size} differs from EyeLink coordinates {screen_size}.")
+        add_quadrant_points = bool(params["Additional Quadrant Points"]) and not quick and not validation
+        random_seed = int(params["Random Seed"])
         target_specs = _build_calibration_target_specs(
             params,
-            SCREEN_SIZE,
+            screen_size,
             add_quadrant_points=add_quadrant_points,
             random_seed=random_seed,
         )
@@ -371,13 +453,13 @@ def main(tracker_mode="qy", quick=False, is_simulating=0):
             params["Fixation Point Radius (deg)"],
             params["Viewing Distance (cm)"],
             params["Subject Monitor Width (cm)"],
-            SCREEN_SIZE[0],
+            screen_size[0],
         )
         fixation_window_radius_px = visual_angle_to_pixels(
             params["Fix Window Radius (deg)"],
             params["Viewing Distance (cm)"],
             params["Subject Monitor Width (cm)"],
-            SCREEN_SIZE[0],
+            screen_size[0],
         )
 
         manager = CalibrationManager(
@@ -400,6 +482,8 @@ def main(tracker_mode="qy", quick=False, is_simulating=0):
             max_wait_time_s=float(params["Maximum Wait per Point (s)"]),
             iti_s=float(params["ITI (s)"]),
             reward_ms=int(params["Reward Duration (ms)"]),
+            sample_duration_s=float(params["Sample Duration (ms)"]) / 1000,
+            minimum_samples=int(params["Minimum Samples"]),
         )
         manager.calibration_report["parameters"] = dict(params)
         manager.calibration_report["background"] = gray_background
@@ -418,7 +502,7 @@ def main(tracker_mode="qy", quick=False, is_simulating=0):
             )
         else:
             calibration_result = manager.run_calibration(
-                default_left, default_right
+                default_left, default_right, apply_result=not validation
             )
         if calibration_result is None:
             update_json(
@@ -435,6 +519,32 @@ def main(tracker_mode="qy", quick=False, is_simulating=0):
             )
             return None
         left_cal, right_cal = calibration_result
+        update_json(task_path, "Mapping_Before", dict(left=default_left, right=default_right))
+        if validation:
+            # Finish EDF transfer before opening the blocking review window.
+            # No model has been fitted or applied to validation samples yet.
+            update_json(task_path, "Calibration_Report", manager.calibration_report)
+            tracker_runtime.close()
+            update_json(task_path, "EDF", dict(path=getattr(tracker_runtime, "local_edf_path", None), downloaded=True))
+            win_subject.close(); win_subject = None
+            win_control.close(); win_control = None
+            should_update = show_validation(manager.collected_data, default_right, log_dir)
+            update_json(task_path, "Update_Selected", should_update)
+            if should_update:
+                require_fit_data(manager.collected_data)
+                # Offline fitting: the tracker connection is already closed.
+                left_cal = manager._fit_affine(manager.collected_data[:, 2], manager.collected_data[:, 3],
+                    manager.collected_data[:, 0], manager.collected_data[:, 1], default_left, weights=manager.collected_weights)
+                right_cal = manager._fit_affine(manager.collected_data[:, 4], manager.collected_data[:, 5],
+                    manager.collected_data[:, 0], manager.collected_data[:, 1], default_right, weights=manager.collected_weights)
+                save_mapping(default_path, log_dir, left_cal, right_cal,
+                    dict(session_id=session_id, source="validation_refit", independently_validated=False,
+                         sample_source=sample_source, parameters=params))
+                update_json(task_path, "Mapping_After", dict(left=left_cal, right=right_cal))
+                print("Mapping updated. Run a NEW validation to evaluate the new fit.")
+            else:
+                print(f"Mapping unchanged. Validation plot and records saved to {log_dir}")
+            return left_cal, right_cal
         update_json(
             task_path,
             "Calibration_Report",
@@ -449,8 +559,15 @@ def main(tracker_mode="qy", quick=False, is_simulating=0):
             and sample_source == "gaze"
         )
         if writes_active_calibration:
-            update_json(default_path, "default_left_cal", left_cal)
-            update_json(default_path, "default_right_cal", right_cal)
+            if str(tracker_mode).lower() == "eyelink":
+                if hasattr(manager, "collected_data"):
+                    require_fit_data(manager.collected_data)
+                save_mapping(default_path, log_dir, left_cal, right_cal,
+                    dict(session_id=session_id, source="calibration", independently_validated=False,
+                         sample_source=sample_source, parameters=params))
+            else:
+                update_json(default_path, "default_left_cal", left_cal)
+                update_json(default_path, "default_right_cal", right_cal)
         else:
             print(
                 "EyeLink GAZE bypasses FineVision affine calibration; "
@@ -475,7 +592,11 @@ def main(tracker_mode="qy", quick=False, is_simulating=0):
         if tracker_runtime is not None:
             try:
                 tracker_runtime.close()
+                edf_path = getattr(tracker_runtime, "local_edf_path", None)
+                update_json(task_path, "EDF", dict(path=edf_path,
+                    downloaded=bool(edf_path and os.path.isfile(edf_path))))
             except Exception:
+                update_json(task_path, "EDF_Transfer_Error", traceback.format_exc())
                 traceback.print_exc()
         if win_subject is not None:
             win_subject.close()

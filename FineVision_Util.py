@@ -3,10 +3,28 @@ import serial
 import serial.tools.list_ports as list_ports
 import time
 import winsound
+from pathlib import Path
 try:
     from trodesnetwork import socket
 except ImportError:
     socket = None
+
+
+REWARD_SOUND_DURATION_S = 0.6
+REWARD_SOUND_BEEP_COUNT = 6
+REWARD_SOUND_FREQUENCY_HZ = 1200
+REWARD_SOUND_BEEP_DURATION_MS = 50
+REWARD_SOUND_GAP_S = 0.05
+REWARD_SOUND_PATH = (
+    Path(__file__).resolve().parent
+    / "audio"
+    / "reward_cue_600ms_6beeps.wav"
+)
+
+
+def play_reward_sound():
+    """Play one 0.6-second WAV, avoiding per-beep Windows scheduling delays."""
+    winsound.PlaySound(str(REWARD_SOUND_PATH), winsound.SND_FILENAME)
 
 
 # %%
@@ -70,25 +88,17 @@ class ArduinoController:
             payload = bytes([128,high_byte,low_byte,speed_byte])
             self.conn.write(payload)
         
-        # 播放奖励提示音：跟随奖励时长发出嘀嘀嘀声音
+        # 播放统一的 0.6 秒快速六声奖励提示音。
         self._play_reward_sound(duration_ms)
     
     def _play_reward_sound(self, duration_ms):
         """
-        在奖励期间播放提示音
-        :param duration_ms: 奖励时长（毫秒），声音会跟随这个时长持续播放
+        播放统一的六声奖励提示音。
+
+        :param duration_ms: 保留此参数以兼容现有调用；声音固定为 0.6 秒。
         """
         try:
-            # 计算需要播放多少次短音（每100ms一个嘀声）
-            beep_count = max(1, int(duration_ms / 100))
-            beep_duration = min(50, duration_ms // beep_count)  # 每个嘀声的持续时间
-            
-            for i in range(beep_count):
-                # 播放 1000Hz 的声音
-                winsound.Beep(1000, beep_duration)
-                # 如果不是最后一个，间隔一段时间
-                if i < beep_count - 1:
-                    time.sleep(0.02)
+            play_reward_sound()
         except Exception as e:
             print(f"[Audio] Failed to play reward sound: {e}")
     

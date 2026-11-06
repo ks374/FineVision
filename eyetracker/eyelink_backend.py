@@ -1,3 +1,4 @@
+import json
 import math
 import os
 import time
@@ -11,10 +12,10 @@ INVALID_GAZE = -999.0
 class EyeLinkBackend(TrackerBackend):
     """Direct PyLink backend with EDF recording and custom calibration input.
 
-    The active FineVision configuration reads right-eye HREF coordinates and
-    maps them into task-screen pixels with FineVision's custom calibration.
-    EyeLink GAZE screen coordinates remain available as an optional source,
-    but are not used by the default EyeLink task configuration.
+    FineVision can read right-eye RAW pupil-camera coordinates or HREF and map
+    either source into task-screen pixels with its custom affine calibration.
+    EyeLink GAZE screen coordinates remain available as an optional source and
+    bypass the FineVision affine mapping because the Host has calibrated them.
     """
 
     mode = "eyelink"
@@ -40,8 +41,10 @@ class EyeLinkBackend(TrackerBackend):
         self.screen_height = int(screen_size[1])
         self.sample_rate = int(sample_rate)
         self.sample_source = str(sample_source).lower()
-        if self.sample_source not in {"href", "gaze"}:
-            raise ValueError("EyeLink sample_source must be 'href' or 'gaze'.")
+        if self.sample_source not in {"raw", "href", "gaze"}:
+            raise ValueError(
+                "EyeLink sample_source must be 'raw', 'href', or 'gaze'."
+            )
         self.active_eye = str(active_eye).lower()
         if self.active_eye != "right":
             raise ValueError("EyeLink active_eye must be 'right'.")
@@ -49,9 +52,27 @@ class EyeLinkBackend(TrackerBackend):
         self.session_t0 = (
             float(session_t0) if session_t0 is not None else time.perf_counter()
         )
+        self.calibration_file = os.path.abspath(calibration_file)
+        raw_calibration = None
+        if self.sample_source == "raw":
+            # SharedGazeData permits silent identity fallback for legacy users.
+            # RAW pupil coordinates must never proceed with that fallback.
+            with open(self.calibration_file, encoding="utf-8") as handle:
+                raw_calibration = json.load(handle)["default_right_cal"]
+            required = ("ox", "oy", "gx", "gy")
+            if not all(k in raw_calibration for k in required):
+                raise ValueError("RAW right-eye calibration is missing ox/oy/gx/gy.")
+            if not all(math.isfinite(float(raw_calibration.get(k, 0.0)))
+                       for k in (*required, "gxy", "gyx")):
+                raise ValueError("RAW right-eye calibration must contain finite coefficients.")
         self._gaze_source = SharedGazeData(
-            calibration_file=calibration_file
+            calibration_file=self.calibration_file
         )
+        if raw_calibration is not None:
+            self._gaze_source.set_calibration_right_dict(raw_calibration)
+            print("[EyeLink RAW] Calibration file:", self.calibration_file)
+            print("[EyeLink RAW] Right-eye coefficients:",
+                  self._gaze_source.get_calibration_right())
         self._pylink = None
         self._tracker = None
         self._recording = False
@@ -173,6 +194,10 @@ class EyeLinkBackend(TrackerBackend):
     def _eye_pair(self, eye_data):
         if eye_data is None:
             return None
+        if self.sample_source == "raw":
+            # Camera x/y of the pupil centre. These are tracker-detected image
+            # coordinates, not EyeLink GAZE/HREF and not a camera frame.
+            return eye_data.getRawPupil()
         if self.sample_source == "href":
             return eye_data.getHREF()
         pair = eye_data.getGaze()
@@ -242,7 +267,8 @@ class EyeLinkBackend(TrackerBackend):
             # EyeLink GAZE is already calibrated by the Host and _eye_pair()
             # has already converted it from top-left screen pixels to
             # FineVision's centered coordinate system.  Applying the custom
-            # HREF affine calibration here would calibrate the sample twice.
+            # RAW/HREF affine calibration here would calibrate the sample
+            # twice.
             gaze = self._gaze_source.get_latest()
         else:
             gaze = self._gaze_source.get_latest_cal()

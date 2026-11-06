@@ -1,5 +1,6 @@
 {
     "parameters": {
+        "Subject ID": "Monkey_I18",
         "EyeLink Host IP": "100.1.1.1",
         "Calibration Type": "HV9",
         "Maximum Calibration Eccentricity (deg)": 12.0,

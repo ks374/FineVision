@@ -1,0 +1,13 @@
+{
+    "parameters": {
+        "Subject ID": "Monkey_H18",
+        "Fixation Point Radius (pix)": 25,
+        "Fixation Point Color": "white",
+        "Maximum Fixation Display (s)": 5.0,
+        "Reward Duration (ms)": 700,
+        "Black Screen Duration (s)": 5.0,
+        "Subject Screen Index": 1,
+        "Control Screen Index": 0,
+        "Full Screen": false
+    }
+}

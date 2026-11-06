@@ -1,0 +1,7 @@
+step,n
+All logged trials,1680
+Successful non-control trials,1105
+Non-overlapping fixation/target windows,874
+Complete EDF timing events,874
+Valid first saccade and gain,873
+Latency >= 80 ms (main analysis),691

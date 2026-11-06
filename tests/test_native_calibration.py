@@ -117,9 +117,9 @@ class NativeCalibrationTests(unittest.TestCase):
 
     def test_native_edf_host_name_obeys_eight_character_limit(self):
         session_id, host_name, local_path = _native_edf_paths(
-            datetime(2026, 8, 7, 9, 30, 15, 123456)
+            datetime(2026, 8, 7, 9, 30, 15, 123456), subject_id="Monkey_H18"
         )
-        self.assertEqual(session_id, "20260807_093015_123456")
+        self.assertEqual(session_id, "Monkey_H18_20260807_093015_123456")
         self.assertEqual(len(host_name.split(".")[0]), 8)
         self.assertTrue(host_name.endswith(".EDF"))
         self.assertTrue(str(local_path).endswith(".edf"))

@@ -1,0 +1,15 @@
+﻿attempt,plan_id,status,edf_saccades_starting_in_window,online_saccades_received,online_saccades_starting_in_window,longest_target_hold_ms
+537,385,nofix_2,1,1,0,0
+538,385,nofix_2,1,1,0,0
+539,385,nofix_2,1,1,0,192.45480000972748
+541,385,nofix_2,1,2,0,302.0397999935085
+542,385,nofix_2,1,0,0,236.20780000055674
+543,385,nofix_2,2,1,0,146.48780001152772
+544,385,nofix_2,1,2,0,0
+547,385,nofix_2,1,2,0,0
+548,385,nofix_2,0,2,0,0
+549,385,nofix_2,1,1,0,0
+550,385,nofix_2,1,1,0,0
+551,385,nofix_2,1,1,0,0
+552,385,nofix_2,1,1,0,246.5412000019569
+553,385,aborted,1,0,0,0

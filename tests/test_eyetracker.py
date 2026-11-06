@@ -17,15 +17,24 @@ from eyetracker.runtime import _host_edf_name, _load_eyelink_settings
 
 
 class FakeEye:
-    def __init__(self, href, gaze=(960.0, 540.0)):
+    def __init__(
+        self,
+        href,
+        gaze=(960.0, 540.0),
+        raw_pupil=(500.0, 400.0),
+    ):
         self.href = href
         self.gaze = gaze
+        self.raw_pupil = raw_pupil
 
     def getHREF(self):
         return self.href
 
     def getGaze(self):
         return self.gaze
+
+    def getRawPupil(self):
+        return self.raw_pupil
 
 
 class FakeSample:
@@ -316,16 +325,16 @@ class CalibrationManagerTests(unittest.TestCase):
 
 
 class EyeLinkBackendTests(unittest.TestCase):
-    def test_project_configuration_uses_gaze_without_href_calibration(self):
+    def test_project_configuration_uses_raw_pupil_affine_calibration(self):
         project_root = os.path.dirname(os.path.dirname(__file__))
         settings = _load_eyelink_settings(
             os.path.join(project_root, "eyelink_setting.json")
         )
-        self.assertEqual(settings["sample_source"], "gaze")
+        self.assertEqual(settings["sample_source"], "raw")
         self.assertEqual(settings["active_eye"], "right")
         self.assertEqual(
             settings["calibration_file"],
-            "eyelink_gaze_identity_setting.json",
+            "eyelink_raw_pupil_setting.json",
         )
 
     def test_href_samples_and_edf_events_share_backend(self):
@@ -411,6 +420,74 @@ class EyeLinkBackendTests(unittest.TestCase):
             )
             gaze = backend.get_latest_cal()
             self.assertEqual((gaze["x"], gaze["y"]), (21.0, 62.0))
+            backend.close()
+
+    def test_raw_pupil_samples_use_finevision_affine_calibration(self):
+        tracker = FakeTracker(
+            FakeSample(
+                None,
+                FakeEye(
+                    (10.0, 20.0),
+                    raw_pupil=(500.0, 400.0),
+                ),
+            )
+        )
+        pylink = fake_pylink_module(tracker)
+        with tempfile.TemporaryDirectory() as temp_dir, patch.dict(
+            sys.modules, {"pylink": pylink}
+        ):
+            backend = EyeLinkBackend(
+                host_ip="100.1.1.1",
+                host_edf_name="FTEST005.EDF",
+                local_edf_path=os.path.join(temp_dir, "session.edf"),
+                sample_source="raw",
+                calibration_file="missing-test-settings.json",
+            )
+            backend.set_calibration_right(
+                ox=-1000.0,
+                oy=1200.0,
+                gx=2.0,
+                gy=-3.0,
+                gxy=0.0,
+                gyx=0.0,
+            )
+            gaze = backend.get_latest_cal()
+            self.assertEqual((gaze["xr"], gaze["yr"]), (0.0, 0.0))
+            self.assertEqual((gaze["x"], gaze["y"]), (0.0, 0.0))
+            backend.close()
+
+    def test_raw_pupil_zero_x_mapping_locks_gaze_to_screen_centre(self):
+        tracker = FakeTracker(
+            FakeSample(
+                None,
+                FakeEye(
+                    (10.0, 20.0),
+                    raw_pupil=(725.0, 310.0),
+                ),
+            )
+        )
+        pylink = fake_pylink_module(tracker)
+        with tempfile.TemporaryDirectory() as temp_dir, patch.dict(
+            sys.modules, {"pylink": pylink}
+        ):
+            backend = EyeLinkBackend(
+                host_ip="100.1.1.1",
+                host_edf_name="FTEST006.EDF",
+                local_edf_path=os.path.join(temp_dir, "session.edf"),
+                sample_source="raw",
+                calibration_file="missing-test-settings.json",
+            )
+            backend.set_calibration_right(
+                ox=0.0,
+                oy=0.0,
+                gx=0.0,
+                gy=1.0,
+                gxy=0.0,
+                gyx=0.0,
+            )
+            gaze = backend.get_latest_cal()
+            self.assertEqual(gaze["x"], 0.0)
+            self.assertEqual(gaze["y"], 310.0)
             backend.close()
 
     def test_recalibration_resumes_recording_in_the_same_open_edf(self):

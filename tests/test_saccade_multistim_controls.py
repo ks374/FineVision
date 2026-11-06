@@ -9,7 +9,7 @@ from SaccadeMultiStimTask import (
     _build_condition_plan,
     _load_calibration,
 )
-from SaccadeTask import SaccadeTask, TaskAbort
+from SaccadeTask import MONITOR_ID_SUBJECT, SaccadeTask, TaskAbort
 
 
 def control_test_params(**updates):
@@ -303,7 +303,10 @@ class PositionControlBehaviorTests(unittest.TestCase):
             task.win_sub.winHandle.visibility,
             [False, True],
         )
-        self.assertEqual(window_factory.call_args.kwargs["screen"], 1)
+        self.assertEqual(
+            window_factory.call_args.kwargs["screen"],
+            MONITOR_ID_SUBJECT,
+        )
         self.assertTrue(window_factory.call_args.kwargs["fullscr"])
         self.assertEqual(len(presented_frames), 1)
 

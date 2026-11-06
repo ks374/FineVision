@@ -7,6 +7,7 @@ import random
 import time
 import traceback
 from datetime import datetime
+from SessionNaming import subject_filename, confirm_session_parameters
 from multiprocessing import Queue, Value, freeze_support
 from queue import Full
 
@@ -906,7 +907,10 @@ class SaccadeTask:
         return False
 
     def run_task(self):
-        if not self.task_manager.prompt_for_parameters():
+        if (
+            not getattr(self.task_manager, "session_parameters_confirmed", False)
+            and not self.task_manager.prompt_for_parameters()
+        ):
             raise TaskAbort()
         self.update_params()
         event.clearEvents()
@@ -962,8 +966,11 @@ class SaccadeTask:
         self.arduino.close()
 
 
-def _create_session_dir(script_dir):
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+def _create_session_dir(script_dir, subject_id="Unknown"):
+    # This shared filename suffix includes the confirmed subject and start time.
+    timestamp = (
+        subject_filename(subject_id) + "_" + datetime.now().strftime("%Y%m%d_%H%M%S")
+    )
     base = os.path.join(script_dir, "experiment_logs", f"Saccade_{timestamp}")
     candidate = base
     suffix = 1
@@ -971,12 +978,22 @@ def _create_session_dir(script_dir):
         candidate = f"{base}_{suffix:03d}"
         suffix += 1
     os.makedirs(candidate)
-    return timestamp, candidate
+    return timestamp + candidate[len(base):], candidate
 
 
 def main(tracker_mode="qy"):
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    session_timestamp, save_dir = _create_session_dir(script_dir)
+    task_manager = FineVision_Notebook(
+        task_name="SaccadeTask",
+        default_params=DEFAULT_PARAMS,
+        parameter_groups=SACCADE_PARAMETER_GROUPS,
+        parameter_validator=_validate_params,
+    )
+    if not confirm_session_parameters(task_manager):
+        return
+    session_timestamp, save_dir = _create_session_dir(
+        script_dir, task_manager.exp_params["Subject ID"]
+    )
     session_t0 = time.perf_counter()
 
     save_gaze_csv = str(tracker_mode).lower() != "eyelink"
@@ -1028,12 +1045,6 @@ def main(tracker_mode="qy"):
             title=f"Saccade Control View ({tracker_runtime.mode})",
         )
 
-        task_manager = FineVision_Notebook(
-            task_name="SaccadeTask",
-            default_params=DEFAULT_PARAMS,
-            parameter_groups=SACCADE_PARAMETER_GROUPS,
-            parameter_validator=_validate_params,
-        )
         task = SaccadeTask(
             win_subject,
             win_control,

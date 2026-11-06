@@ -1,0 +1,33 @@
+{
+  "fixation_params": {
+    "Subject ID": "Monkey_H18",
+    "Wait Time (s)": 5.0,
+    "Stim Duration (s)": 1.5,
+    "Fix Window Radius (pix)": 250,
+    "Reward Length (s)": 0.8,
+    "ITI (s)": 4.0,
+    "Timeout (s)": 0.1
+  },
+  "bar_params": {
+    "bar_enabled": true,
+    "bar_color_r": 255,
+    "bar_color_g": 0,
+    "bar_color_b": 0,
+    "bar_shape": "Rectangle",
+    "bar_width": 120,
+    "bar_height": 40,
+    "bar_pos_x": 300,
+    "bar_pos_y": 0,
+    "bar_mode": "single",
+    "bar_symmetric_flicker": false,
+    "bar_sequence_start_idx": 0,
+    "bar_sequence_dwell_time": 1.0,
+    "bar_sequence_interval": 0.5,
+    "bar_flicker_on": false,
+    "bar_flicker_interval": 0.5,
+    "bar_flicker_duration": 0.3,
+    "bar_rotation": 0.0
+  },
+  "timestamp": "20260903_144054",
+  "status": "cancelled"
+}

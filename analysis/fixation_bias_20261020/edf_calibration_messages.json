@@ -1,0 +1,14 @@
+[
+  {
+    "tracker_time_ms": "948599573",
+    "message": "DISPLAY_COORDS 0 0 1919 1079"
+  },
+  {
+    "tracker_time_ms": "948599581",
+    "message": "RECCFG CR 1000 2 1 2 1 R"
+  },
+  {
+    "tracker_time_ms": "952631219",
+    "message": "META PARAMETERS_UPDATED A 686 PART 1 t\":0,\"Random seed\":20261014,\"RF x_min (deg)\":0.0,\"RF x_max (deg)\":18.0,\"RF y_min (deg)\":-18.0,\"RF y_max (deg)\":0.0,\"Control calibrated level\":150,\"Target diamet"
+  }
+]

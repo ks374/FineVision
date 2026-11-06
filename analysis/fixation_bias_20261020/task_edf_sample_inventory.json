@@ -1,0 +1,65 @@
+{
+  "file": "D:\\Chenghang\\Training_Log_Huanhuan\\20261020\\Saccade_Elec_Monkey_H18_20261020_110949_807724\\SaccadeElec_Monkey_H18_20261020_110949_807724_eyelink.edf",
+  "sample_count": 4866769,
+  "first_ms": 948599582,
+  "last_ms": 953466350,
+  "flags": {
+    "0x7fc1": 486677,
+    "0x5fc1": 4380092
+  },
+  "valid_right_counts": {
+    "raw_pupil": 4578270,
+    "href": 4555598,
+    "gaze": 4866769
+  },
+  "examples": [
+    {
+      "time_ms": 948599582,
+      "raw_right": [
+        -5528.0,
+        -4287.0
+      ],
+      "href_right": [
+        580.0,
+        -2265.0
+      ],
+      "gaze_right": [
+        826.2000122070312,
+        1099.0
+      ],
+      "flags": "0x7fc1"
+    },
+    {
+      "time_ms": 948599583,
+      "raw_right": [
+        -5527.0,
+        -4286.0
+      ],
+      "href_right": [
+        580.0,
+        -2266.0
+      ],
+      "gaze_right": [
+        826.2000122070312,
+        1099.199951171875
+      ],
+      "flags": "0x5fc1"
+    },
+    {
+      "time_ms": 948599584,
+      "raw_right": [
+        -5527.0,
+        -4285.0
+      ],
+      "href_right": [
+        580.0,
+        -2267.0
+      ],
+      "gaze_right": [
+        826.2000122070312,
+        1099.4000244140625
+      ],
+      "flags": "0x5fc1"
+    }
+  ]
+}

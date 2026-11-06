@@ -35,8 +35,27 @@ vertical two-dot cue replaces the single fixation point from the first trial
 frame. Its center is the configured fixation position and the usual fixation
 window is still used for acquisition and holding. After the sampled
 `Stim Onset Delay` has elapsed, the task goes directly to choice: no separate
-cue onset occurs and `Stim Duration (ms)` is skipped. When the option is not
-checked, the standard delayed-cue sequence below is unchanged.
+cue onset occurs and `Stim Duration (ms)` is skipped. This is an explicit
+alternative training mode. In the standard mode, leave this option unchecked.
+The animal first acquires and holds the normal fixation point; on one display
+refresh the fixation point disappears and the cue appears. The cue then remains
+visible for `Stim Duration (ms)` without a fixation-hold requirement before the
+choice display begins.
+
+When `Gaze-Contingent Stimulus Position` is checked in the standard mode, the
+task reads the newest gaze sample before drawing every cue frame. In task-space
+pixel coordinates the displayed cue center is
+`configured cue center + current gaze position - fixation position`. Thus, for
+a configured cue at `(1, 1)`, it is displayed at
+`(gaze position - fixation position) + (1, 1)`. Gaze and cue therefore move in
+the same direction. The result is not clamped to the screen: when the cue moves
+outside the display, PsychoPy simply does not show the off-screen portion. The
+choice targets remain at their configured screen positions. If gaze is invalid,
+the configured fixed cue
+position is used for that frame. When the option is unchecked, behavior is
+identical to the original fixed-position task. Gaze compensation is deliberately
+disabled when `Use Visual Cue as Fixation Point` is checked so that the
+fixation-acquisition target itself does not move.
 
 When `Keep Cue Visible During Choice` is checked, the cue remains on the
 subject screen when the fixation interval ends and the choice targets appear.
@@ -53,11 +72,48 @@ cue is retained automatically while this guidance is visible, even if
 sets the shared opacity of this yellow cue frame and connecting line. This
 setting does not change the fixed 2-second post-trial teaching feedback.
 
+The same pre-choice yellow cue frame and connecting line can be scheduled as a
+memory reminder without keeping `Give Feedback First` enabled on every trial:
+
+- `Reminder After Consecutive Errors (X)`: after X completed incorrect choices
+  in a row, show the reminder on the next trial. A completed correct choice
+  resets the streak; trials without a completed choice leave it unchanged.
+- `Reminder After Trials (Y)` and `Reminder Trials (Z)`: after Y trials without
+  an interval reminder, show the reminder for the next Z trials, then begin a
+  new Y-trial interval.
+- The two schedules keep independent counters. If both are due on the same
+  trial, one reminder is shown and both trigger sources are logged. Set X to 0
+  to disable the error schedule; set either Y or Z to 0 to disable the interval
+  schedule.
+
+Reward feedback uses six rapid 1200-Hz beeps in one 0.6-second WAV. The same
+sound is shared with the Saccade tasks and the manual pump helper.
+
+## Blocks and failed-trial repeats
+
+`Trials per Block (N)` sets the number of successfully completed trials in each
+block and defaults to 40. It can be edited in the startup parameter window.
+Once the task starts, this field is disabled in the `N`-key runtime menu and the
+session keeps the startup value. Block and within-block trial numbers are
+written to the behavior CSV and EDF metadata.
+
+Failed attempts do not advance the within-block trial number. After the Nth
+successful trial, the task gives one extra water reward. `Block Reward Length
+(s)` controls this reward independently of the normal correct-choice reward and
+defaults to 1.5 seconds. The Nth success receives both its normal reward and the
+later block-completion reward.
+
+Every outcome other than `Success` schedules the same horizontal or vertical
+cue for the next trial. This repeat takes priority over random selection and a
+manual H/V request. If H or V was requested during the ITI, that manual request
+is retained for the trial after the required repeat.
+
 - Stage 1: no cue is shown. At the sampled time fixation disappears and only
   the correct target appears.
-- Stage 2: the horizontal or vertical dot pair appears at the sampled time while
-  fixation remains required. After `Stim Duration (ms)` (500 ms by default),
-  the cue and fixation point disappear and only the correct target appears.
+- Stage 2: at the sampled time, the fixation point disappears and the horizontal
+  or vertical dot pair appears on the same display refresh. After
+  `Stim Duration (ms)` (500 ms by default), the correct target appears; the cue
+  remains during choice only if `Keep Cue Visible During Choice` is checked.
 - Stage 3: the cue timing is identical to Stage 2. Both targets appear at
   response onset as compact dot pairs: the right target is a horizontal pair
   and the upper target is a vertical pair. Their center-to-center spacing is
@@ -85,7 +141,9 @@ correct choice, yellow rectangular frames mark the cue and selected target and
 a yellow line connects their nearest edges. After an incorrect choice, only
 the cue and incorrectly selected target are shown, without yellow frames or a
 line. Trials without a completed choice do not show this feedback. The feedback
-duration is fixed and is intentionally not exposed as a parameter.
+duration is fixed and is intentionally not exposed as a parameter. On correct
+trials, the first post-trial feedback frame is flipped to the subject display
+before the success marker, water command, and reward sound are triggered.
 
 ## Starting the task
 
@@ -102,6 +160,12 @@ on the EyeLink Host: that selects the Host-side target display. Pressing `Esc`
 during EyeLink setup returns without completing calibration. There is no
 automatic calibration-quality decision in this task. With a QY tracker, the
 recalibration action is hidden.
+
+Closing the runtime menu with `Cancel` now discards menu edits and resumes the
+same session; it does not terminate the task. Every return from an `N`-key pause
+(`Cancel`, `Confirm`, or `Recalibrate`) gives one reward using the normal
+`Reward Length (s)` setting as a cue that the task is restarting. Use `Esc` in
+the running task to terminate the session.
 
 The Escape used to leave EyeLink setup is cleared before the task window
 resumes and is ignored for one second, preventing it from also terminating the

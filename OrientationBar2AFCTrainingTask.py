@@ -48,11 +48,16 @@ BAR_PARAMETER_GROUPS = {
         "Subject ID",
         "Training Stage",
         "Random Seed",
+        "Trials per Block (N)",
         "Show Post-Trial Teaching Feedback",
         "Give Feedback First",
         "First Feedback Opacity (0-1)",
+        "Reminder After Consecutive Errors (X)",
+        "Reminder After Trials (Y)",
+        "Reminder Trials (Z)",
         "Use Visual Cue as Fixation Point",
         "Keep Cue Visible During Choice",
+        "Gaze-Contingent Stimulus Position",
         "Wait Time (s)",
     ],
     "Fixation": [
@@ -98,6 +103,7 @@ BAR_PARAMETER_GROUPS = {
     ],
     "Reward": [
         "Reward Length (s)",
+        "Block Reward Length (s)",
         "ITI (s)",
         "Timeout (s)",
     ],
@@ -282,14 +288,16 @@ class OrientationBar2AFCTrainingTask(Orientation2AFCTrainingTask):
             return width_x, length_y
         raise ValueError(f"Unknown bar orientation: {orientation}")
 
-    def _draw_cue(self, orientation):
+    def _draw_cue(self, orientation, gaze=None):
         width_px, height_px = self._bar_size_px(orientation, choice=False)
-        self.cue_bar_sub.pos = (self.cue_center_x_px, self.cue_center_y_px)
+        cue_center_x_px, cue_center_y_px = self._cue_center_for_gaze(gaze)
+        self._current_cue_center_px = (cue_center_x_px, cue_center_y_px)
+        self.cue_bar_sub.pos = (cue_center_x_px, cue_center_y_px)
         self.cue_bar_sub.size = (width_px, height_px)
         self.cue_bar_sub.opacity = self.cue_bar_opacity
         self.cue_bar_ctl.pos = (
-            self.cue_center_x_px * self.scale_x,
-            self.cue_center_y_px * self.scale_y,
+            cue_center_x_px * self.scale_x,
+            cue_center_y_px * self.scale_y,
         )
         self.cue_bar_ctl.size = (
             width_px * self.scale_x,
@@ -344,11 +352,18 @@ class OrientationBar2AFCTrainingTask(Orientation2AFCTrainingTask):
         padding = max(4.0, min(width_px, height_px) * 0.75)
         return width_px + 2.0 * padding, height_px + 2.0 * padding
 
-    def _new_trial_data(self, trial_number, orientation, stim_delay_s):
+    def _new_trial_data(
+        self,
+        trial_number,
+        orientation,
+        stim_delay_s,
+        completed_trials_before=None,
+    ):
         trial_data = super()._new_trial_data(
             trial_number,
             orientation,
             stim_delay_s,
+            completed_trials_before=completed_trials_before,
         )
         for field in _DOT_SHAPE_LOG_FIELDS:
             trial_data.pop(field, None)

@@ -11,6 +11,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+from SessionNaming import subject_filename
 import math
 import os
 import sys
@@ -37,6 +38,7 @@ MAX_CALIBRATION_ECCENTRICITY_DEG = 12.0
 
 @dataclass
 class NativeCalibrationConfig:
+    subject_id: str = "Monkey_H18"
     host_ip: str = "100.1.1.1"
     screen: int = DEFAULT_SCREEN
     width: int = DEFAULT_SCREEN_SIZE[0]
@@ -174,11 +176,11 @@ def _task_visual_angle_to_pixels(
     return size_cm * int(resolution_pixels) / float(monitor_size_cm)
 
 
-def _native_edf_paths(started_at=None):
+def _native_edf_paths(started_at=None, subject_id="Unknown"):
     """Create an eight-character Host name and a readable local EDF path."""
     started_at = started_at or datetime.now()
-    session_id = started_at.strftime("%Y%m%d_%H%M%S_%f")
-    digest = hashlib.sha1(session_id.encode("ascii")).hexdigest()[:7]
+    session_id = subject_filename(subject_id) + "_" + started_at.strftime("%Y%m%d_%H%M%S_%f")
+    digest = hashlib.sha1(session_id.encode("utf-8")).hexdigest()[:7]
     host_edf_name = f"N{digest}.EDF".upper()
     local_edf_path = (
         SCRIPT_DIR
@@ -200,6 +202,7 @@ def _parse_args(argv=None):
     parser = argparse.ArgumentParser(
         description="Run native EyeLink calibration on a selected display."
     )
+    parser.add_argument("--subject-id", default=None, help="Monkey name for saved records.")
     parser.add_argument("--screen", type=int, default=None,
                         help="PsychoPy display index; default dialog value is 1.")
     parser.add_argument("--width", type=int, default=DEFAULT_SCREEN_SIZE[0])
@@ -260,7 +263,11 @@ def _config_from_args(args):
         raise ValueError(
             "--max-eccentricity-deg must be greater than 0 and no more than 12."
         )
+    subject_id = args.subject_id or _load_json_object(
+        args.task_params, "task parameters"
+    ).get("parameters", {}).get("Subject ID", "Monkey_H18")
     config = NativeCalibrationConfig(
+        subject_id=str(subject_id),
         host_ip=str(args.host),
         screen=DEFAULT_SCREEN if args.screen is None else int(args.screen),
         width=int(args.width),
@@ -305,6 +312,7 @@ def _config_from_args(args):
 
 
 def _validate_native_config(config):
+    subject_filename(config.subject_id)
     if config.calibration_type not in {"HV5", "HV9"}:
         raise ValueError("Calibration Type must be HV5 or HV9.")
     if not 0.0 < config.max_eccentricity_deg <= 12.0:
@@ -338,6 +346,7 @@ def _native_dialog_params(config):
         if value != config.reward_mode
     ]
     return {
+        "Subject ID": config.subject_id,
         "EyeLink Host IP": config.host_ip,
         "Calibration Type": calibration_choices,
         "Maximum Calibration Eccentricity (deg)": config.max_eccentricity_deg,
@@ -358,6 +367,7 @@ def _native_dialog_params(config):
 
 NATIVE_PARAMETER_GROUPS = {
     "Connection / 连接": [
+        "Subject ID",
         "EyeLink Host IP",
         "Subject Screen Index",
         "Screen Width (px)",
@@ -390,6 +400,7 @@ def _config_from_dialog_params(config, params):
     )
     updated = replace(
         config,
+        subject_id=str(params["Subject ID"]).strip(),
         host_ip=str(params["EyeLink Host IP"]).strip(),
         calibration_type=str(params["Calibration Type"]),
         max_eccentricity_deg=float(
@@ -715,8 +726,10 @@ def _write_session_log(
     log_dir = SCRIPT_DIR / "experiment_logs"
     log_dir.mkdir(exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = log_dir / f"eyelink_native_calibration_{timestamp}.json"
+    record_id = session_id or (subject_filename(config.subject_id) + "_" + timestamp)
+    log_path = log_dir / f"eyelink_native_calibration_{record_id}.json"
     payload = {
+        "subject_id": config.subject_id,
         "status": status,
         "finished_at": datetime.now().isoformat(timespec="seconds"),
         "host_ip": config.host_ip,
@@ -776,7 +789,7 @@ def run_native_calibration(config):
     target_size_px = None
     session_started_at = datetime.now()
     session_id, host_edf_name, local_edf_path = _native_edf_paths(
-        session_started_at
+        session_started_at, config.subject_id
     )
     local_edf_path.parent.mkdir(exist_ok=True)
     data_file_open = False
