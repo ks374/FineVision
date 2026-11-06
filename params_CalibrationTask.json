@@ -2,10 +2,10 @@
     "parameters": {
         "Subject ID": "Monkey_H18",
         "Fixation Point Radius (deg)": 0.05,
-        "Fix Window Radius (deg)": 4.0,
+        "Fix Window Radius (deg)": 6.0,
         "Fixation Duration (ms)": 500,
         "Maximum Wait per Point (s)": 5.0,
-        "ITI (s)": 1.5,
+        "ITI (s)": 1.0,
         "Reward Duration (ms)": 300,
         "Background Gray Level (0-182)": 5,
         "Viewing Distance (cm)": 60.0,

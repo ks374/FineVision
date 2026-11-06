@@ -30,6 +30,7 @@ WAVEFORM.pop("slot", None)
 ROOT = Path(__file__).resolve().parent
 RECORD_GUARD_S = 1.1  # At least 1 s plus scheduling/USB margin on both sides.
 REWARD_DELAY_S = 0.3  # Keep a post-result recording window before automatic water.
+NEGATIVE_EVENT_READOUT_S = 0.1  # Allow ENDSACC delivery for movements starting near the deadline.
 DEFAULTS = {
     "Subject ID": "Monkey_H18", "Simulate stimulation": True,
     "Random seed": 20261014,
@@ -42,6 +43,7 @@ DEFAULTS = {
     "Fixation Duration Min (ms)": 300.0, "Fixation Duration Max (ms)": 500.0,
     "Gap Duration (ms)": 100.0, "Control window radius (deg)": 1.0,
     "Control hold (ms)": 50.0, "Saccade threshold (deg)": 0.75,
+    "Negative control hold (ms)": 300.0,
     "Response after stim (ms)": 300.0,
     "Reward electrical nofix_2": True, "Reward Length (s)": 0.5,
     "ITI (s)": 3.0, "Timeout (s)": 0.5,
@@ -54,6 +56,15 @@ DEFAULTS = {
 
 def bounds(p):
     return tuple(float(p[f"RF {name} (deg)"]) for name in ("x_min", "x_max", "y_min", "y_max"))
+
+
+def make_session_plan(p):
+    seed = int(p["Random seed"])
+    plan = make_plan(0, seed, bounds(p), p["Intan channels"], repeats=1)
+    controls = [i for i, condition in enumerate(plan) if condition["kind"] == "control"]
+    for i in random.Random(seed).sample(controls, len(controls)//2):
+        plan[i] = dict(kind="negative_control", plan_id=plan[i]["plan_id"])
+    return plan
 
 
 def session_eyelink_raw_settings(source, destination):
@@ -104,7 +115,7 @@ def validate(p):
     for key in ("Wait Time (s)", "Fixation Duration Min (ms)",
                 "Fix Window Radius (deg)", "Fixation Point Radius (deg)",
                 "Target diameter (deg)", "Control window radius (deg)",
-                "Control hold (ms)", "Saccade threshold (deg)",
+                "Control hold (ms)", "Negative control hold (ms)", "Saccade threshold (deg)",
                 "Viewing Distance (cm)", "Subject Monitor Width (cm)",
                 "Subject Monitor Height (cm)"):
         if float(p[key]) <= 0:
@@ -401,7 +412,7 @@ def launch(args):
     if args.mouse:
         p["Simulate stimulation"] = True
     validate(p)
-    plan = make_plan(0, int(p["Random seed"]), bounds(p), p["Intan channels"], repeats=1)
+    plan = make_session_plan(p)
     stamp = subject_filename(p["Subject ID"]) + "_" + datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     out = ROOT / "experiment_logs" / ("Saccade_Elec_Intan_" + stamp)
     out.mkdir(parents=True)
@@ -418,8 +429,9 @@ def launch(args):
             trigger="KeyPressF1_shared_with_electrode", hardware_timing_verified=False),
         calibration=calibration, background=background, mouse=args.mouse, endpoint_frame="screen_center_deg",
         onset_reference="display_flip_simulation_or_Intan_command_dispatch",
-        log_schema_version=4, recording_continuous=False,
+        log_schema_version=5, recording_continuous=False,
         response_timing_policy="received_and_qualified_by_deadline_no_grace",
+        negative_control_event_readout_s=NEGATIVE_EVENT_READOUT_S,
         acquisition_note="RHX stops during ITI parameter uploads; see intan_acquisition.jsonl", timestamp_units=dict(pc="seconds", eyelink="milliseconds"),
         fixation_photodiode_cycles=10, stimulus_duration_s=WAVEFORM["nominal_train_ms"]/1000,
         photodiode_size_px=160,
@@ -527,9 +539,9 @@ def launch(args):
             if stim:
                 self.stim_sub.draw()
                 self.stim_ctl.draw()
-            if fix or self.fix_pd:
+            if fix or self.fix_pd or (self.row and self.row["kind"] == "negative_control"):
                 self.fix_window_ctl.draw()
-            if self.row and self.row["kind"] != "stim":
+            if self.row and self.row["kind"] in ("control", "precontrol"):
                 self.stim_window_ctl.draw()
             pd_on = bool(stim_pd or self.fix_pd)
             if pd_on:
@@ -672,6 +684,7 @@ def launch(args):
 
         def run_attempt(self, condition):
             self.trial_active = True
+            self.trigger = None
             self.attempt += 1
             key = condition["plan_id"]
             self.condition_attempts[key] = self.condition_attempts.get(key, 0)+1
@@ -683,17 +696,20 @@ def launch(args):
             self.mark("TRIALID", plan_id=condition["plan_id"], condition=condition)
             if self.reader:
                 self.row.update(self.reader.synchronize())
-            x = self.fix_x_deg + condition["target_deg"][0]
-            y = self.fix_y_deg + condition["target_deg"][1]
-            self.stim_x_px, self.stim_y_px = self._to_x_pixels(x), self._to_y_pixels(y)
-            self.stim_sub.pos = (self.stim_x_px, self.stim_y_px)
-            self.stim_ctl.pos = (self.stim_x_px*self.scale_x, self.stim_y_px*self.scale_y)
-            self.stim_window_ctl.pos = self.stim_ctl.pos
-            color = [v/127.5-1 for v in (self.control_rgb if condition["kind"] != "stim" else [0, 255, 0])]
-            self.stim_sub.fillColor = self.stim_sub.lineColor = color
-            self.stim_ctl.fillColor = self.stim_ctl.lineColor = color
-            self.row.update(target_screen_deg=[x, y], control_rgb=self.control_rgb,
-                control_luminance=calibration["target_luminance_cd_m2_by_color"]["Gray"][self.control_level])
+            if condition["kind"] == "negative_control":
+                self.row["fixation_reference_deg"] = [self.fix_x_deg, self.fix_y_deg]
+            else:
+                x = self.fix_x_deg + condition["target_deg"][0]
+                y = self.fix_y_deg + condition["target_deg"][1]
+                self.stim_x_px, self.stim_y_px = self._to_x_pixels(x), self._to_y_pixels(y)
+                self.stim_sub.pos = (self.stim_x_px, self.stim_y_px)
+                self.stim_ctl.pos = (self.stim_x_px*self.scale_x, self.stim_y_px*self.scale_y)
+                self.stim_window_ctl.pos = self.stim_ctl.pos
+                color = [v/127.5-1 for v in (self.control_rgb if condition["kind"] != "stim" else [0, 255, 0])]
+                self.stim_sub.fillColor = self.stim_sub.lineColor = color
+                self.stim_ctl.fillColor = self.stim_ctl.lineColor = color
+                self.row.update(target_screen_deg=[x, y], control_rgb=self.control_rgb,
+                    control_luminance=calibration["target_luminance_cd_m2_by_color"]["Gray"][self.control_level])
             self.pending_events.clear()
             self.fix_pd = 0
             self.gaze_renderer.reset_trail()
@@ -723,6 +739,8 @@ def launch(args):
             self.row["fixoff_pc"] = self.flip_pc
             self.row["fixation_hold_actual_s"] = self.flip_pc - acquired
             self.row["fixation_hold_overrun_s"] = max(0., self.flip_pc-self.row["fixoff_deadline_pc"])
+            if condition["kind"] == "negative_control":
+                return self.negative_control_response(g)
             gap_start = self.flip_pc
             self.row["gap_deadline_pc"] = gap_start + p["Gap Duration (ms)"]/1000
             while True:
@@ -739,6 +757,63 @@ def launch(args):
                 self.reader.drain(self.attempt)
             self.pending_events.clear()
             return self.response(condition, g)
+
+        def negative_control_response(self, initial_gaze):
+            start = self.row["fixoff_pc"]
+            deadline = start + p["Negative control hold (ms)"]/1000
+            readout_deadline = deadline + NEGATIVE_EVENT_READOUT_S
+            to_ms = self.reader.tracker_ms if self.reader else lambda pc: pc*1000
+            start_ms, deadline_ms = to_ms(start), to_ms(deadline)
+            threshold = p["Saccade threshold (deg)"]
+            self.row.update(response_success_criterion="fixation_hold_without_saccade",
+                            response_timing_policy="fixoff_window_with_endsacc_readout",
+                            response_deadline_reference="fixoff_pc",
+                            response_deadline_pc=deadline,
+                            negative_control_readout_deadline_pc=readout_deadline)
+            self.mark("NEGATIVE_CONTROL_ON", pc=start, deadline_pc=deadline)
+            reason = "fixation_hold_complete"
+            end = deadline
+            observed_fixation = False
+            while True:
+                frame_start = time.perf_counter()
+                g = self.frame()
+                for s in self.pending_events:
+                    saccade_start = event_time_ms(s, "start")
+                    if (start_ms <= saccade_start < deadline_ms
+                            and s.get("received_pc", frame_start) <= readout_deadline
+                            and qualifies(s, start_ms, math.inf, threshold)):
+                        self.row["saccade"] = s
+                        self.row["saccade_end_relative_fix_deg"] = [
+                            s["end_deg"][0]-self.fix_x_deg, s["end_deg"][1]-self.fix_y_deg]
+                        reason, end = "negative_control_saccade", min(self.flip_pc, deadline)
+                        break
+                self.pending_events.clear()
+                if reason == "negative_control_saccade":
+                    break
+                timestamp = g.get("timestamp")
+                sample_ms = timestamp*1000 if self.reader and timestamp is not None else to_ms(frame_start)
+                if start_ms <= sample_ms < deadline_ms:
+                    if not self.in_fix(g):
+                        reason, end = "negative_control_fixation_break", min(self.flip_pc, deadline)
+                        break
+                    observed_fixation = True
+                    if args.mouse:
+                        size = (self.monitor_width_cm, self.monitor_height_cm)
+                        start_deg, end_deg = (
+                            gaze_degrees((sample["x"]+960, 540-sample["y"]), (1920,1080),
+                                         size, self.viewing_distance_cm)
+                            for sample in (initial_gaze, g))
+                        if math.dist(start_deg, end_deg) > threshold:
+                            reason, end = "negative_control_mouse_displacement", min(self.flip_pc, deadline)
+                            break
+                if frame_start >= readout_deadline:
+                    if not observed_fixation:
+                        reason = "negative_control_missing_gaze"
+                    break
+            self.row.update(response_end_pc=end, response_end_reason=reason,
+                            response_finished_pc=time.perf_counter())
+            self.mark("RESPONSE_END", pc=end, reason=reason)
+            return "success" if reason == "fixation_hold_complete" else "break_2"
 
         def response(self, condition, initial_gaze):
             self.row["response_timing_policy"] = "received_and_qualified_by_deadline_no_grace"
@@ -1075,7 +1150,7 @@ def main():
     parser.add_argument("--preview", action="store_true", help="Save default 128-channel, 490-condition plan (one per channel/current)")
     args = parser.parse_args()
     if args.preview:
-        plan = make_plan(0, DEFAULTS["Random seed"], bounds(DEFAULTS), DEFAULTS["Intan channels"], repeats=1)
+        plan = make_session_plan(DEFAULTS)
         path = ROOT / "Saccade_Elec_plan_preview_Intan.json"
         path.write_text(json.dumps(plan, indent=2), encoding="utf-8")
         print(path)

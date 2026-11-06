@@ -17,6 +17,21 @@ from SaccadeElecLogic import make_plan, qualifies, advance, gaze_degrees
 
 
 class ProtocolTests(unittest.TestCase):
+    def test_intan_session_splits_only_the_scheduled_controls(self):
+        p = task.DEFAULTS
+        plan = task.make_session_plan(p)
+        original = task.make_plan(0, p["Random seed"], task.bounds(p), p["Intan channels"], repeats=1)
+        self.assertEqual(plan, task.make_session_plan(p))
+        self.assertEqual(len(plan), 490)
+        self.assertEqual(Counter(c["kind"] for c in plan[14::5]),
+                         {"control": 48, "negative_control": 48})
+        for before, after in zip(original, plan):
+            if after["kind"] == "negative_control":
+                self.assertEqual(before["kind"], "control")
+                self.assertEqual(after, {"kind": "negative_control", "plan_id": before["plan_id"]})
+            else:
+                self.assertEqual(before, after)
+
     def test_schedule_and_balanced_control(self):
         for bank in (0, 128):
             plan = make_plan(bank, 123, (3, 12, -6, 6))
@@ -81,6 +96,8 @@ class ResponseTests(unittest.TestCase):
         obj.fix_x_deg = obj.fix_y_deg = 0
         obj.stim_x_px, obj.stim_y_px = target_px
         obj.stim_radius_px = 20
+        obj.fix_x_px = obj.fix_y_px = 0
+        obj.fix_radius_px = 20
         obj._in_window = lambda g,x,y,r: g['valid'] and math.hypot(g['x']-x,g['y']-y)<=r
         markers = []
         obj.mark = lambda label, **kw: markers.append((label,kw))
@@ -99,6 +116,13 @@ class ResponseTests(unittest.TestCase):
                 injected = True
             return gaze(clock.t) if gaze else {'valid':True,'x':0,'y':0}
         obj.frame = frame
+        if kind == 'negative_control':
+            obj.row["fixoff_pc"] = 0
+            status = obj.negative_control_response({'valid':True,'x':0,'y':0})
+            self.assertFalse(any(light))
+            self.assertFalse(commands)
+            self.assertNotIn("stimon_pc", obj.row)
+            return status, obj.row
         status = obj.response({'kind':kind}, {'valid':True,'x':0,'y':0})
         duration=obj.row['stimoff_pc']-obj.row['stimon_pc']
         self.assertGreaterEqual(duration,task.WAVEFORM['nominal_train_ms']/1000)
@@ -111,6 +135,29 @@ class ResponseTests(unittest.TestCase):
         self.assertEqual(status,'nofix_2')
         self.assertNotIn('saccade',row)
         self.assertLess(row['response_finished_pc']-row['response_deadline_pc'],1/60+1e-9)
+
+    def test_negative_control_uses_saccade_start_and_strict_amplitude(self):
+        cases = [
+            (None, 0, 4, "success"),
+            (.18, 100, .75, "success"),
+            (.18, 100, .76, "break_2"),
+            (.35, 290, 4, "break_2"),  # ENDSACC after the behavioral deadline.
+            (.35, 300, 4, "success"),
+            (.18, -5, 4, "success"),
+        ]
+        for receipt, start, amplitude, expected in cases:
+            with self.subTest(receipt=receipt, start=start, amplitude=amplitude):
+                status, row = self.run_response(kind="negative_control", received=receipt,
+                                                sacc_start=start, sacc_amplitude=amplitude)
+                self.assertEqual(status, expected)
+                self.assertAlmostEqual(row["response_deadline_pc"], .3)
+                self.assertEqual("saccade" in row, expected == "break_2")
+
+    def test_negative_control_requires_valid_gaze_in_fixation_window(self):
+        for gaze in (dict(valid=True, x=21, y=0), dict(valid=False, x=0, y=0)):
+            status, row = self.run_response(kind="negative_control", received=None, gaze=lambda t: gaze)
+            self.assertEqual(status, "break_2")
+            self.assertEqual(row["response_end_reason"], "negative_control_fixation_break")
 
     def test_control_hold_succeeds_even_if_event_receipt_is_late(self):
         good = lambda t: dict(valid=True,x=100,y=0)
@@ -262,6 +309,22 @@ class FixationTimingTests(unittest.TestCase):
         self.assertLess(obj.row['fixation_hold_actual_s'],.06)
         self.assertGreater(clock.t-obj.row['fixoff_pc'],.01)
         self.assertEqual(sum(c.args[0]['pd'] for c in obj.frames_log.write.call_args_list),10)
+
+    def test_negative_control_starts_on_fixation_offset_and_shows_no_target(self):
+        obj, _ = self.make_task()
+        obj.attempt = 0
+        obj.condition_attempts = {}
+        obj.parameter_revision = 0
+        obj.arduino = None
+        obj.fix_x_deg, obj.fix_y_deg = -3, 5
+        obj.response = Mock(side_effect=AssertionError("Negative control entered stimulus response"))
+        self.assertEqual(obj.run_attempt(dict(kind="negative_control", plan_id=1)), "success")
+        self.assertEqual(obj.row["fixation_reference_deg"], [-3, 5])
+        self.assertAlmostEqual(obj.row["response_deadline_pc"] - obj.row["fixoff_pc"], .3)
+        self.assertNotIn("gap_deadline_pc", obj.row)
+        self.assertNotIn("stimon_pc", obj.row)
+        obj.stim_sub.draw.assert_not_called()
+        self.assertEqual(sum(c.args[0]["pd"] for c in obj.frames_log.write.call_args_list), 10)
 
 
 class RuntimeParameterTests(unittest.TestCase):
